@@ -52,7 +52,7 @@ export function HomeView() {
       <section className="flex flex-col gap-5 rounded-3xl bg-primary px-5 py-7 text-primary-foreground md:px-8 md:py-9">
         <div className="flex flex-col gap-1">
           <p className="text-sm font-medium text-primary-foreground/80">{greeting()},</p>
-          <h1 className="text-3xl font-bold text-balance md:text-4xl">{firstName} 👋</h1>
+          <h1 className="text-3xl font-bold text-balance md:text-4xl">{firstName}</h1>
           <p className="max-w-lg text-sm leading-relaxed text-pretty text-primary-foreground/85 md:text-base">
             Good food from restaurants near you, waiting to be rescued tonight.
           </p>
