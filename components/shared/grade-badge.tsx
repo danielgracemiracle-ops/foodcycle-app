@@ -9,7 +9,17 @@ const GRADE_STYLE: Record<FoodGrade, string> = {
   C: 'bg-warning text-foreground',
 }
 
-export function GradeBadge({ grade, size = 'sm', className }: { grade: FoodGrade; size?: 'sm' | 'lg'; className?: string }) {
+export function GradeBadge({
+  grade,
+  size = 'sm',
+  compact = false,
+  className,
+}: {
+  grade: FoodGrade
+  size?: 'sm' | 'lg'
+  compact?: boolean
+  className?: string
+}) {
   const info = GRADE_INFO[grade]
   if (size === 'lg') {
     return (
@@ -31,12 +41,16 @@ export function GradeBadge({ grade, size = 'sm', className }: { grade: FoodGrade
   }
   return (
     <span
-      className={cn('inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-xs font-semibold', GRADE_STYLE[grade], className)}
+      className={cn(
+        'inline-flex h-6 shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-1.5 text-xs leading-none font-semibold',
+        GRADE_STYLE[grade],
+        className,
+      )}
       title={`${info.label}: ${info.description}`}
     >
       <span className="font-heading text-sm leading-none font-bold">{grade}</span>
       <span className="sr-only">Grade {grade}, </span>
-      <span>{info.label}</span>
+      <span className={cn(compact && 'sr-only sm:not-sr-only')}>{info.label}</span>
     </span>
   )
 }

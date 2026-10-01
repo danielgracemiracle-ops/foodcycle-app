@@ -30,21 +30,25 @@ export function SummaryLines({ lines }: { lines: Lines }) {
   return (
     <ul className="flex flex-col gap-3">
       {lines.map(({ item, food, restaurant }) => (
-        <li key={food.id} className="flex items-center gap-3">
+        <li key={food.id} className="flex items-start gap-3">
           <div className="relative size-14 shrink-0 overflow-hidden rounded-xl bg-muted">
             <Image src={food.image || '/placeholder.svg'} alt="" fill sizes="56px" className="object-cover" />
           </div>
-          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <div className="flex items-center gap-2">
-              <p className="truncate text-sm font-semibold">{food.name}</p>
-              <GradeBadge grade={calculateGrade(food)} />
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <div className="flex items-start justify-between gap-3">
+              <p className="line-clamp-2 text-sm leading-snug font-semibold text-pretty">{food.name}</p>
+              <p className="shrink-0 text-right text-sm font-semibold tabular-nums">{formatRupiah(food.price * item.quantity)}</p>
             </div>
-            <p className="truncate text-xs text-muted-foreground">{restaurant.name} · {pickupLabel(food.pickupStart, food.pickupEnd)}</p>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <GradeBadge grade={calculateGrade(food)} className="h-5" />
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {item.quantity} x {formatRupiah(food.price)}
+              </span>
+            </div>
+            <p className="truncate text-xs text-muted-foreground">
+              {restaurant.name} · {pickupLabel(food.pickupStart, food.pickupEnd)}
+            </p>
           </div>
-          <p className="shrink-0 text-sm tabular-nums">
-            <span className="text-muted-foreground">{item.quantity}x </span>
-            {formatRupiah(food.price * item.quantity)}
-          </p>
         </li>
       ))}
     </ul>

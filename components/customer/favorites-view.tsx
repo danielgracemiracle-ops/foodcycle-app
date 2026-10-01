@@ -45,7 +45,7 @@ export function FavoritesView() {
       {foods.length > 0 && (
         <section className="flex flex-col gap-4">
           <SectionHeader title="Food" description={`${foods.length} saved`} />
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
             {foods.map((f) =>
               available.has(f.id) ? (
                 <FoodCard key={f.id} food={f} />

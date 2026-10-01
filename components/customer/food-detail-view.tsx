@@ -183,7 +183,7 @@ export function FoodDetailView({ id }: { id: string }) {
 
           <Panel title="About this food">
             <p className="text-sm leading-relaxed text-pretty text-muted-foreground">{food.description}</p>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
               <div className="flex flex-col gap-2">
                 <h3 className="text-sm font-semibold">Ingredients</h3>
                 <ul className="flex flex-wrap gap-1.5">

@@ -192,7 +192,7 @@ export function ExploreView({ initial }: { initial: ExploreInitial }) {
             {query.trim() && hydrated && <> for &ldquo;{query.trim()}&rdquo;</>}
           </p>
           {!hydrated ? (
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3">
               {Array.from({ length: 6 }, (_, i) => <FoodCardSkeleton key={i} />)}
             </div>
           ) : results.length === 0 ? (
@@ -213,7 +213,7 @@ export function ExploreView({ initial }: { initial: ExploreInitial }) {
               }
             />
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3">
               {results.map((food) => <FoodCard key={food.id} food={food} />)}
             </div>
           )}

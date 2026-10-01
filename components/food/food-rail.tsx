@@ -43,9 +43,9 @@ export function FoodRail({
       {items.length === 0 ? (
         <p className="rounded-2xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">{emptyText}</p>
       ) : (
-        <div className="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 md:mx-0 md:grid md:grid-cols-3 md:overflow-visible md:px-0 md:pb-0 xl:grid-cols-4">
+        <div className="-mx-4 flex snap-x snap-mandatory gap-3 sm:gap-4 overflow-x-auto px-4 pb-2 md:mx-0 md:grid md:grid-cols-3 md:overflow-visible md:px-0 md:pb-0 xl:grid-cols-4">
           {items.map(({ food, reason }) => (
-            <FoodCard key={food.id} food={food} reason={reason} className="w-64 shrink-0 snap-start md:w-auto" />
+            <FoodCard key={food.id} food={food} reason={reason} className="w-44 shrink-0 snap-start sm:w-64 md:w-auto" />
           ))}
         </div>
       )}

@@ -47,14 +47,16 @@ export function FoodCard({ food, reason, className }: { food: Food; reason?: str
           src={food.image || '/placeholder.svg'}
           alt={food.name}
           fill
-          sizes="(min-width: 1024px) 280px, (min-width: 640px) 45vw, 90vw"
+          sizes="(min-width: 1024px) 280px, 50vw"
           className={cn('object-cover transition-transform duration-500 group-hover:scale-105', soldOut && 'grayscale')}
         />
-        <div className="absolute top-3 left-3 flex flex-wrap items-center gap-1.5">
+        <div className="absolute top-2 left-2 flex flex-wrap items-center gap-1 sm:top-3 sm:left-3 sm:gap-1.5">
           {discount > 0 && (
-            <span className="rounded-full bg-foreground px-2 py-0.5 text-xs font-semibold text-background">-{discount}%</span>
+            <span className="rounded-full bg-foreground px-1.5 py-0.5 text-[11px] font-semibold whitespace-nowrap text-background sm:px-2 sm:text-xs">
+              -{discount}%
+            </span>
           )}
-          <GradeBadge grade={grade} />
+          <GradeBadge grade={grade} compact className="h-5 sm:h-6" />
         </div>
         {user?.role === 'customer' && (
           <button
@@ -62,7 +64,7 @@ export function FoodCard({ food, reason, className }: { food: Food; reason?: str
             onClick={onFavorite}
             aria-pressed={favorited}
             aria-label={favorited ? `Remove ${food.name} from favorites` : `Add ${food.name} to favorites`}
-            className="absolute top-3 right-3 z-10 inline-flex size-9 items-center justify-center rounded-full bg-background/90 shadow-sm backdrop-blur transition-colors hover:bg-background"
+            className="absolute top-2 right-2 z-10 inline-flex size-8 items-center sm:top-3 sm:right-3 sm:size-9 justify-center rounded-full bg-background/90 shadow-sm backdrop-blur transition-colors hover:bg-background"
           >
             <Heart className={cn('size-4', favorited ? 'fill-destructive text-destructive' : 'text-foreground')} aria-hidden="true" />
           </button>
@@ -72,10 +74,10 @@ export function FoodCard({ food, reason, className }: { food: Food; reason?: str
         )}
       </div>
 
-      <div className="flex flex-1 flex-col gap-3 p-4">
-        <div className="flex flex-col gap-1">
-          <p className="truncate text-xs font-medium text-muted-foreground">{restaurant?.name}</p>
-          <h3 className="line-clamp-1 font-heading text-base font-semibold leading-snug">
+      <div className="flex flex-1 flex-col gap-2 p-3 sm:gap-3 sm:p-4">
+        <div className="flex flex-col gap-0.5 sm:gap-1">
+          <p className="truncate text-[11px] font-medium text-muted-foreground sm:text-xs">{restaurant?.name}</p>
+          <h3 className="line-clamp-2 font-heading text-sm font-semibold leading-snug text-pretty sm:line-clamp-1 sm:text-base">
             <Link href={`/food/${food.id}`} className="after:absolute after:inset-0 focus-visible:outline-none">
               {food.name}
             </Link>
@@ -83,10 +85,10 @@ export function FoodCard({ food, reason, className }: { food: Food; reason?: str
           {reason && <p className="line-clamp-1 text-xs text-primary">{reason}</p>}
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] whitespace-nowrap text-muted-foreground sm:gap-x-3 sm:gap-y-1.5 sm:text-xs">
           <RatingInline rating={food.rating} />
           {restaurant && (
-            <span className="inline-flex items-center gap-1">
+            <span className="hidden items-center gap-1 sm:inline-flex">
               <MapPin className="size-3.5" aria-hidden="true" />
               {restaurant.distanceKm.toFixed(1)} km
             </span>
@@ -97,8 +99,8 @@ export function FoodCard({ food, reason, className }: { food: Food; reason?: str
           </span>
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-          <span className="rounded-full bg-secondary px-2 py-0.5 font-medium text-secondary-foreground">{food.category}</span>
+        <div className="flex flex-wrap items-center gap-1.5 text-[11px] whitespace-nowrap">
+          <span className="hidden rounded-full bg-secondary px-2 py-0.5 font-medium text-secondary-foreground sm:inline">{food.category}</span>
           {!soldOut && (
             <span className={cn('font-medium', food.quantity <= 2 ? 'text-destructive' : 'text-muted-foreground')}>
               {food.quantity} left
@@ -113,21 +115,21 @@ export function FoodCard({ food, reason, className }: { food: Food; reason?: str
         </div>
 
         <div className="mt-auto flex items-end justify-between gap-2">
-          <div className="flex flex-col">
+          <div className="flex min-w-0 flex-col">
             {discount > 0 && (
-              <span className="text-xs text-muted-foreground line-through">{formatRupiah(food.originalPrice)}</span>
+              <span className="truncate text-[11px] text-muted-foreground line-through sm:text-xs">{formatRupiah(food.originalPrice)}</span>
             )}
-            <span className="font-heading text-lg font-bold text-foreground">{formatRupiah(food.price)}</span>
+            <span className="truncate font-heading text-base font-bold text-foreground sm:text-lg">{formatRupiah(food.price)}</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <QualityPill score={food.quality.score} />
+          <div className="flex shrink-0 items-center gap-1.5">
+            <QualityPill score={food.quality.score} className="hidden sm:inline-flex" />
             {user?.role === 'customer' && (
               <button
                 type="button"
                 onClick={onAdd}
                 disabled={soldOut || adding}
                 aria-label={`Add ${food.name} to cart`}
-                className="relative z-10 inline-flex size-9 items-center justify-center rounded-full bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                className="relative z-10 inline-flex size-8 items-center sm:size-9 justify-center rounded-full bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
               >
                 {adding ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Plus className="size-4" aria-hidden="true" />}
               </button>
