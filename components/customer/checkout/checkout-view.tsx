@@ -8,6 +8,7 @@ import type { OrderType } from '@/types'
 import { useCurrentUser, useDb, useHydrated } from '@/hooks/use-db'
 import { cartLines, cartTotals } from '@/lib/selectors'
 import { pickupLabel } from '@/lib/format'
+import { institutionCapacity } from '@/lib/donation-limit'
 import { cn } from '@/lib/utils'
 import { saveCheckoutDraft } from '@/services/order-service'
 import { ButtonLink } from '@/components/shared/button-link'
@@ -34,7 +35,11 @@ export function CheckoutView({ initialType }: { initialType: OrderType }) {
 
   const lines = cartLines(db, user.id)
   const totals = cartTotals(lines)
-  const institutions = db.institutions.filter((i) => i.verification === 'approved' && i.acceptingDonations)
+  const cartMeals = lines.reduce((s, l) => s + l.item.quantity, 0)
+  const institutions = db.institutions
+    .filter((i) => i.verification === 'approved')
+    .map((inst) => ({ inst, ...institutionCapacity(db, inst) }))
+    .sort((a, b) => Number(a.remaining < cartMeals) - Number(b.remaining < cartMeals))
   const notDonatable = lines.filter((l) => !l.food.donationAvailable)
   const restaurants = [...new Map(lines.map((l) => [l.restaurant.id, l.restaurant])).values()]
 
@@ -140,21 +145,29 @@ export function CheckoutView({ initialType }: { initialType: OrderType }) {
           </Panel>
 
           {type === 'donation' && (
-            <Panel title="Choose a social institution" description="Only verified institutions currently accepting donations are shown.">
+            <Panel title="Choose a social institution" description="Each institution sets a daily meal limit. Institutions that are full today can't be selected.">
               <div role="radiogroup" aria-label="Social institution" className="flex flex-col gap-3">
-                {institutions.map((inst) => (
+                {institutions.map(({ inst, limit, remaining }) => {
+                  const unavailable = remaining < cartMeals
+                  return (
                   <button
                     key={inst.id}
                     type="button"
                     role="radio"
                     aria-checked={institutionId === inst.id}
+                    aria-disabled={unavailable}
+                    disabled={unavailable}
                     onClick={() => {
                       setInstitutionId(inst.id)
                       setError(undefined)
                     }}
                     className={cn(
                       'flex flex-col gap-2 rounded-2xl border-2 p-4 text-left transition-colors sm:flex-row sm:items-center sm:justify-between',
-                      institutionId === inst.id ? 'border-primary bg-accent/60' : 'border-border hover:border-primary/40',
+                      unavailable
+                        ? 'cursor-not-allowed border-border opacity-55'
+                        : institutionId === inst.id
+                          ? 'border-primary bg-accent/60'
+                          : 'border-border hover:border-primary/40',
                     )}
                   >
                     <span className="flex flex-col gap-1">
@@ -170,13 +183,26 @@ export function CheckoutView({ initialType }: { initialType: OrderType }) {
                         <span className="font-semibold tabular-nums">{inst.mealsNeeded}</span>
                       </span>
                       <span className="flex flex-col">
-                        <span className="text-xs text-muted-foreground">Accepting</span>
-                        <span className="font-semibold text-primary">Yes</span>
+                        <span className="text-xs text-muted-foreground">Left today</span>
+                        <span className={cn('font-semibold tabular-nums', remaining === 0 ? 'text-destructive' : unavailable ? 'text-foreground' : 'text-primary')}>
+                          {remaining === 0 ? 'Full' : `${remaining} / ${limit}`}
+                        </span>
                       </span>
                     </span>
+                    {unavailable && (
+                      <span className="text-xs text-muted-foreground sm:hidden">
+                        {remaining === 0 ? 'Daily limit reached. Try again tomorrow.' : `Only ${remaining} meal(s) left today. Your cart has ${cartMeals}.`}
+                      </span>
+                    )}
                   </button>
-                ))}
+                  )
+                })}
               </div>
+              {institutions.some((i) => i.remaining < cartMeals) && (
+                <p className="hidden text-xs text-muted-foreground sm:block">
+                  Greyed-out institutions have reached their daily limit or can&apos;t fit {cartMeals} more meal(s) today.
+                </p>
+              )}
 
               <div className="flex flex-col gap-2">
                 <label htmlFor="donation-message" className="text-sm font-medium">Message to the institution (optional)</label>

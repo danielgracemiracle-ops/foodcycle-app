@@ -3,7 +3,7 @@
 import type { Db } from '@/types'
 import { useCurrentUser, useDb, useHydrated } from '@/hooks/use-db'
 
-const ACTIVE = new Set(['Accepted', 'Restaurant Confirmed', 'Preparing', 'Picked Up', 'Delivered'])
+const ACTIVE = new Set(['Restaurant Confirmed', 'Preparing', 'Picked Up', 'Delivered'])
 
 export function institutionData(db: Db, institutionId: string) {
   const institution = db.institutions.find((i) => i.id === institutionId)

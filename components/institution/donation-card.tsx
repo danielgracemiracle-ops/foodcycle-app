@@ -1,11 +1,10 @@
 'use client'
 
-import { Check, PackageCheck, X } from 'lucide-react'
+import { PackageCheck } from 'lucide-react'
 import type { Db, Donation } from '@/types'
 import { useAction } from '@/hooks/use-db'
 import { formatDateTime, formatRupiah } from '@/lib/format'
-import { DONATION_FLOW, acceptDonation, confirmDonationReceived, rejectDonation } from '@/services/order-service'
-import { ConfirmDialog } from '@/components/shared/confirm-dialog'
+import { DONATION_FLOW, confirmDonationReceived } from '@/services/order-service'
 import { EntityAvatar } from '@/components/shared/entity-avatar'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { Button } from '@/components/ui/button'
@@ -14,8 +13,6 @@ import { Progress } from '@/components/ui/progress'
 export function DonationCard({ donation, db }: { donation: Donation; db: Db }) {
   const restaurant = db.restaurants.find((r) => r.id === donation.restaurantId)
   const donor = db.users.find((u) => u.id === donation.donorId)
-  const [accept, accepting] = useAction(acceptDonation, { success: 'Donation accepted' })
-  const [reject] = useAction(rejectDonation, { success: 'Donation declined, donor refunded' })
   const [receive, receiving] = useAction(confirmDonationReceived, { success: 'Receipt confirmed. Thank you!' })
 
   const step = DONATION_FLOW.indexOf(donation.status)
@@ -48,34 +45,12 @@ export function DonationCard({ donation, db }: { donation: Donation; db: Db }) {
         )}
       </div>
 
-      {donation.status !== 'Rejected' && donation.status !== 'Purchased' && (
+      {donation.status !== 'Rejected' && (
         <div className="flex flex-col gap-1.5">
           <Progress value={progress} aria-label="Donation progress" />
           <p className="text-xs text-muted-foreground">
             Step {step + 1} of {DONATION_FLOW.length}
           </p>
-        </div>
-      )}
-
-      {donation.status === 'Purchased' && (
-        <div className="flex gap-2">
-          <Button className="flex-1" onClick={() => accept(donation.id)} disabled={accepting}>
-            <Check data-icon="inline-start" />
-            Accept
-          </Button>
-          <ConfirmDialog
-            trigger={
-              <Button variant="outline" className="flex-1">
-                <X data-icon="inline-start" />
-                Decline
-              </Button>
-            }
-            title="Decline this donation?"
-            description="The donor will be fully refunded and the restaurant will release the stock."
-            confirmLabel="Decline"
-            destructive
-            onConfirm={() => reject(donation.id)}
-          />
         </div>
       )}
 
