@@ -2,7 +2,6 @@ import type { CheckoutDraft, Db, Donation, DonationStatus, Order, OrderItem, Ord
 import { calculateGrade } from '@/lib/quality'
 import { isPurchasable } from '@/lib/recommendation'
 import { formatRupiah } from '@/lib/format'
-import { institutionCapacity, limitErrorMessage } from '@/lib/donation-limit'
 import { commit, getDb } from './mock-db'
 import { delay, notify, requireUser, ServiceError, uid } from './utils'
 
@@ -71,14 +70,6 @@ function validateCart(db: Db, userId: string) {
   return cart
 }
 
-function assertWithinDailyLimit(db: Db, institutionId: string, cart: { quantity: number }[]) {
-  const inst = db.institutions.find((i) => i.id === institutionId)
-  if (!inst) throw new ServiceError('Institution not found.')
-  const requested = cart.reduce((s, c) => s + c.quantity, 0)
-  const { remaining } = institutionCapacity(db, inst)
-  if (requested > remaining) throw new ServiceError(limitErrorMessage(inst, remaining, requested))
-}
-
 export async function saveCheckoutDraft(draft: CheckoutDraft) {
   await delay(400)
   const user = requireUser('customer')
@@ -87,9 +78,8 @@ export async function saveCheckoutDraft(draft: CheckoutDraft) {
   if (draft.type === 'donation') {
     if (!draft.institutionId) throw new ServiceError('Please choose a social institution to receive your donation.')
     const inst = db.institutions.find((i) => i.id === draft.institutionId)
-    if (!inst || inst.verification !== 'approved')
+    if (!inst || inst.verification !== 'approved' || !inst.acceptingDonations)
       throw new ServiceError('This institution is not accepting donations right now.')
-    assertWithinDailyLimit(db, draft.institutionId, cart)
     const notDonatable = cart
       .map((c) => db.foods.find((f) => f.id === c.foodId)!)
       .filter((f) => !f.donationAvailable)
@@ -109,7 +99,6 @@ export async function processPayment(method: PaymentMethod, simulateFailure = fa
   const draft = db.checkoutDrafts[user.id]
   if (!draft) throw new ServiceError('Your checkout session expired. Please review your cart again.')
   const cart = validateCart(db, user.id)
-  if (draft.type === 'donation' && draft.institutionId) assertWithinDailyLimit(db, draft.institutionId, cart)
   const total = cart.reduce((s, c) => s + (db.foods.find((f) => f.id === c.foodId)?.price ?? 0) * c.quantity, 0)
 
   if (simulateFailure) {
@@ -191,9 +180,7 @@ export async function processPayment(method: PaymentMethod, simulateFailure = fa
         order.donationId = donation.id
         d.donations.unshift(donation)
         const inst = d.institutions.find((i) => i.id === draft.institutionId)
-        notify(d, inst?.ownerId, 'donation', 'New donation incoming', `${donation.quantity}x ${donation.foodSummary} from ${restaurant?.name} is on its way.`, '/institution/donations')
-        if (inst && institutionCapacity(d, inst).isFull)
-          notify(d, inst.ownerId, 'donation', 'Daily limit reached', `You have reached today's limit of ${inst.maxDailyCapacity} meals. New donations reopen tomorrow.`, '/institution')
+        notify(d, inst?.ownerId, 'donation', 'New donation available', `${donation.quantity}x ${donation.foodSummary} from ${restaurant?.name}. Please accept or decline.`, '/institution/donations')
       }
 
       d.orders.unshift(order)
@@ -216,7 +203,7 @@ export async function processPayment(method: PaymentMethod, simulateFailure = fa
 
 export const ORDER_FLOW: OrderStatus[] = ['Payment Confirmed', 'Restaurant Confirmed', 'Preparing', 'Ready for Pickup', 'Picked Up', 'Completed']
 
-export const DONATION_FLOW: DonationStatus[] = ['Purchased', 'Restaurant Confirmed', 'Preparing', 'Picked Up', 'Delivered', 'Received']
+export const DONATION_FLOW: DonationStatus[] = ['Purchased', 'Accepted', 'Restaurant Confirmed', 'Preparing', 'Picked Up', 'Delivered', 'Received']
 
 function pushOrderStatus(order: Order, status: OrderStatus) {
   order.status = status
@@ -262,6 +249,8 @@ function advance(d: Db, order: Order) {
 
   switch (order.status) {
     case 'Payment Confirmed': {
+      if (donation && donation.status === 'Purchased')
+        throw new ServiceError('Waiting for the social institution to accept this donation.')
       pushOrderStatus(order, 'Restaurant Confirmed')
       if (donation) pushDonationStatus(donation, 'Restaurant Confirmed')
       notify(d, order.customerId, 'order', 'Order confirmed', `${restaurant?.name} confirmed ${order.id}.`, `/orders/${order.id}`)
@@ -368,6 +357,11 @@ export async function simulateOrderProgress(orderId: string) {
     const order = d.orders.find((o) => o.id === orderId)
     if (!order || order.customerId !== user.id) throw new ServiceError('Order not found.')
     const donation = d.donations.find((x) => x.id === order.donationId)
+    if (donation?.status === 'Purchased') {
+      pushDonationStatus(donation, 'Accepted')
+      notify(d, user.id, 'donation', 'Donation accepted', `${d.institutions.find((i) => i.id === donation.institutionId)?.name} accepted your donation.`, '/donations')
+      return
+    }
     if (donation?.status === 'Delivered') {
       receive(d, donation)
       return
@@ -383,6 +377,36 @@ function requireInstitutionDonation(d: Db, donationId: string, institutionId?: s
   if (!donation) throw new ServiceError('Donation not found.')
   if (donation.institutionId !== institutionId) throw new ServiceError('This donation is assigned to another institution.')
   return donation
+}
+
+export async function acceptDonation(donationId: string) {
+  await delay(400)
+  const user = requireUser('institution')
+  commit((d) => {
+    const donation = requireInstitutionDonation(d, donationId, user.institutionId)
+    if (donation.status !== 'Purchased') throw new ServiceError('This donation has already been processed.')
+    pushDonationStatus(donation, 'Accepted')
+    const inst = d.institutions.find((i) => i.id === donation.institutionId)
+    const restaurant = d.restaurants.find((r) => r.id === donation.restaurantId)
+    notify(d, donation.donorId, 'donation', 'Donation accepted', `${inst?.name} accepted your donation of ${donation.foodSummary}.`, '/donations')
+    notify(d, restaurant?.ownerId, 'donation', 'Donation accepted', `${inst?.name} accepted ${donation.orderId}. You can now confirm and prepare it.`, '/restaurant/orders')
+  })
+}
+
+export async function rejectDonation(donationId: string) {
+  await delay(400)
+  const user = requireUser('institution')
+  commit((d) => {
+    const donation = requireInstitutionDonation(d, donationId, user.institutionId)
+    if (donation.status !== 'Purchased') throw new ServiceError('Only new donations can be declined.')
+    pushDonationStatus(donation, 'Rejected')
+    const order = d.orders.find((o) => o.id === donation.orderId)
+    if (order) {
+      pushOrderStatus(order, 'Cancelled')
+      restoreStock(d, order)
+    }
+    notify(d, donation.donorId, 'donation', 'Donation declined', `The institution could not accept this donation. A full refund of ${formatRupiah(donation.value)} is on its way.`, '/donations')
+  })
 }
 
 function receive(d: Db, donation: Donation) {

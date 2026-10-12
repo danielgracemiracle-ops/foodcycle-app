@@ -10,7 +10,6 @@ import { StatusBadge } from '@/components/shared/status-badge'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { DailyLimitPanel } from './daily-limit-panel'
 import { DonationCard } from './donation-card'
 
 const Loading = () => <div className="h-96 animate-pulse rounded-3xl bg-muted" />
@@ -41,17 +40,15 @@ export function InstitutionDashboardView() {
       )}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="New donations" value={incoming.length} icon={Gift} />
+        <StatCard label="Awaiting response" value={incoming.length} icon={Gift} />
         <StatCard label="In transit" value={active.length} icon={Truck} />
         <StatCard label="Meals received" value={mealsReceived} icon={Utensils} />
         <StatCard label="Value received" value={formatRupiah(valueReceived)} icon={Wallet} />
       </div>
 
-      {institution && <DailyLimitPanel institution={institution} db={db} />}
-
       <Panel
         title="New donations"
-        description="Donations within your daily limit are accepted automatically."
+        description="Accept to let the restaurant start preparing."
         action={<ButtonLink href="/institution/donations" variant="outline" size="sm">View all</ButtonLink>}
       >
         {incoming.length === 0 ? (
@@ -75,7 +72,7 @@ export function InstitutionDonationsView() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="Donations" description="Track incoming donations and confirm deliveries." />
+      <PageHeader title="Donations" description="Respond to new donations and confirm deliveries." />
       <Tabs value={tab} onValueChange={(v) => setTab(v as 'new' | 'active')}>
         <TabsList>
           <TabsTrigger value="new">New ({incoming.length})</TabsTrigger>
@@ -104,7 +101,7 @@ export function InstitutionHistoryView() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="History" description="Every donation you have received or that was cancelled." />
+      <PageHeader title="History" description="Every donation you have received or declined." />
       {history.length === 0 ? (
         <EmptyState icon={History} title="No history yet" description="Completed donations will be listed here." />
       ) : (
