@@ -1,6 +1,6 @@
 import { SiteHeader } from '@/components/landing/site-header'
 import { Hero } from '@/components/landing/hero'
-import { FinalCta, HowItWorks, ImpactStats, SiteFooter, WhyFoodCycle } from '@/components/landing/sections'
+import { FinalCta, HowItWorks, ImpactStats, SiteFooter, Testimonials, WhyFoodCycle } from '@/components/landing/sections'
 
 export default function LandingPage() {
   return (
@@ -11,6 +11,7 @@ export default function LandingPage() {
         <HowItWorks />
         <WhyFoodCycle />
         <ImpactStats />
+        <Testimonials />
         <FinalCta />
       </main>
       <SiteFooter />
