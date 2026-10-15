@@ -1,6 +1,7 @@
 import type { Food, FoodCategory, FoodGrade, Restaurant } from '@/types'
 import { calculateGrade, hoursUntil } from './quality'
 import { isSameDay } from './format'
+import { calculateHealthScore, getMainIngredients, type HealthLevel, type MainIngredient } from './food-tags'
 
 export const PRICE_MIN = 0
 export const PRICE_MAX = 60000
@@ -26,6 +27,8 @@ export type SortValue = (typeof SORT_OPTIONS)[number]['value']
 
 export interface Filters {
   categories: FoodCategory[]
+  ingredients: MainIngredient[]
+  health: HealthLevel[]
   price: [number, number]
   grades: FoodGrade[]
   minQuality: number
@@ -37,6 +40,8 @@ export interface Filters {
 
 export const EMPTY_FILTERS: Filters = {
   categories: [],
+  ingredients: [],
+  health: [],
   price: [PRICE_MIN, PRICE_MAX],
   grades: [],
   minQuality: 0,
@@ -49,6 +54,8 @@ export const EMPTY_FILTERS: Filters = {
 export function activeFilterCount(f: Filters) {
   return (
     f.categories.length +
+    f.ingredients.length +
+    f.health.length +
     f.grades.length +
     f.pickup.length +
     (f.price[0] !== PRICE_MIN || f.price[1] !== PRICE_MAX ? 1 : 0) +
@@ -75,13 +82,18 @@ function matchesPickup(food: Food, pickup: PickupFilter[], now: number) {
 export function matchesQuery(food: Food, restaurant: Restaurant | undefined, query: string) {
   const q = query.trim().toLowerCase()
   if (!q) return true
-  return [food.name, food.category, restaurant?.name ?? ''].some((s) => s.toLowerCase().includes(q))
+  return [food.name, food.category, restaurant?.name ?? '', ...food.ingredients].some((s) => s.toLowerCase().includes(q))
 }
 
 export function applyFilters(foods: Food[], restaurants: Map<string, Restaurant>, f: Filters, now = Date.now()) {
   return foods.filter((food) => {
     const r = restaurants.get(food.restaurantId)
     if (f.categories.length && !f.categories.includes(food.category)) return false
+    if (f.ingredients.length) {
+      const tags = getMainIngredients(food)
+      if (!f.ingredients.some((i) => tags.includes(i))) return false
+    }
+    if (f.health.length && !f.health.includes(calculateHealthScore(food).level)) return false
     if (food.price < f.price[0] || food.price > f.price[1]) return false
     if (f.grades.length && !f.grades.includes(calculateGrade(food, now))) return false
     if (f.minQuality && food.quality.score < f.minQuality) return false

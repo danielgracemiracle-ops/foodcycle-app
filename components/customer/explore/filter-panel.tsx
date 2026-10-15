@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { FOOD_CATEGORIES, type FoodGrade } from '@/types'
 import { EMPTY_FILTERS, type Filters, PICKUP_OPTIONS, PRICE_MAX, PRICE_MIN } from '@/lib/explore'
 import { formatRupiah } from '@/lib/format'
+import { HEALTH_LABELS, type HealthLevel, MAIN_INGREDIENTS } from '@/lib/food-tags'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -54,6 +55,26 @@ export function FilterPanel({ initial, onApply }: { initial: Filters; onApply: (
           {FOOD_CATEGORIES.map((c) => (
             <Chip key={c} active={draft.categories.includes(c)} onClick={() => set('categories', toggle(draft.categories, c))}>
               {c}
+            </Chip>
+          ))}
+        </div>
+      </Group>
+
+      <Group title="Main ingredient">
+        <div className="flex flex-wrap gap-2">
+          {MAIN_INGREDIENTS.map((m) => (
+            <Chip key={m.value} active={draft.ingredients.includes(m.value)} onClick={() => set('ingredients', toggle(draft.ingredients, m.value))}>
+              {m.label}
+            </Chip>
+          ))}
+        </div>
+      </Group>
+
+      <Group title="Health label">
+        <div className="flex flex-wrap gap-2">
+          {(Object.keys(HEALTH_LABELS) as HealthLevel[]).map((h) => (
+            <Chip key={h} active={draft.health.includes(h)} onClick={() => set('health', toggle(draft.health, h))}>
+              {HEALTH_LABELS[h]}
             </Chip>
           ))}
         </div>
