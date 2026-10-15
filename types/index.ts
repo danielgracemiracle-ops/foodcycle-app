@@ -42,7 +42,41 @@ export interface Restaurant {
   verification: VerificationStatus
   defaultPickupMinutes: number
   logoColor: string
+  legal?: RestaurantLegal
   createdAt: string
+}
+
+/** Payout account used for settlements. Account numbers are stored masked in the UI. */
+export interface BankAccount {
+  bankName: string
+  accountNumber: string
+  accountHolder: string
+}
+
+/** table: restaurant_documents */
+export interface RestaurantLegal {
+  ownerNik: string
+  nib: string
+  npwp: string
+  foodPermit: string
+  halalCertificate?: string
+  bank: BankAccount
+  agreedRules: boolean
+  submittedAt: string
+}
+
+/** table: institution_documents */
+export interface InstitutionLegal {
+  deedNumber: string
+  skKemenkumham: string
+  npwp: string
+  domicileLetter: string
+  picName: string
+  picNik: string
+  beneficiaries: number
+  bank: BankAccount
+  agreedRules: boolean
+  submittedAt: string
 }
 
 /** table: social_institutions */
@@ -63,6 +97,7 @@ export interface SocialInstitution {
   preferredCategories: FoodCategory[]
   maxDailyCapacity: number
   preferredPickupTime: string
+  legal?: InstitutionLegal
   createdAt: string
 }
 
@@ -91,6 +126,8 @@ export interface Food {
   pickupStart: string
   pickupEnd: string
   ingredients: string[]
+  /** Main-ingredient tags (nasi, ayam, ...) used for filtering. Optional for legacy listings. */
+  mainIngredients?: import('@/lib/food-tags').MainIngredient[]
   allergens: string[]
   donationAvailable: boolean
   rating: number

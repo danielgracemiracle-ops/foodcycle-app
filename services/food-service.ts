@@ -1,5 +1,6 @@
 import type { Food, FoodCategory, FoodStatus } from '@/types'
 import { calculateQualityScore, ratingToScore } from '@/lib/quality'
+import type { MainIngredient } from '@/lib/food-tags'
 import { commit, getDb } from './mock-db'
 import { delay, requireUser, ServiceError, uid } from './utils'
 
@@ -14,6 +15,7 @@ export interface FoodInput {
   pickupStart: string
   pickupEnd: string
   ingredients: string[]
+  mainIngredients: MainIngredient[]
   allergens: string[]
   donationAvailable: boolean
   freshness: number
@@ -37,6 +39,7 @@ export function validateFoodInput(input: FoodInput): Record<string, string> {
   else if (input.pickupEnd && new Date(input.pickupEnd).getTime() <= Date.now())
     errors.pickupEnd = 'Deadline must be in the future.'
   if (input.ingredients.length === 0) errors.ingredients = 'List at least one ingredient.'
+  if (input.mainIngredients.length === 0) errors.mainIngredients = 'Pick at least one main ingredient so customers can filter.'
   return errors
 }
 
@@ -70,6 +73,7 @@ export async function createFood(input: FoodInput): Promise<Food> {
     pickupStart: input.pickupStart,
     pickupEnd: input.pickupEnd,
     ingredients: input.ingredients,
+    mainIngredients: input.mainIngredients,
     allergens: input.allergens,
     donationAvailable: input.donationAvailable,
     rating: 0,
@@ -109,6 +113,7 @@ export async function updateFood(foodId: string, input: FoodInput) {
       pickupStart: input.pickupStart,
       pickupEnd: input.pickupEnd,
       ingredients: input.ingredients,
+      mainIngredients: input.mainIngredients,
       allergens: input.allergens,
       donationAvailable: input.donationAvailable,
       weightKg: input.weightKg,

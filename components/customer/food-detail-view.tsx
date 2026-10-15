@@ -11,6 +11,8 @@ import { calculateGrade, discountPercent } from '@/lib/quality'
 import { isPurchasable } from '@/lib/recommendation'
 import { formatDate, formatRupiah, pickupLabel, timeLeftLabel } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { calculateHealthScore, getMainIngredients, mainIngredientLabel } from '@/lib/food-tags'
+import { HealthBadge } from '@/components/shared/health-badge'
 import { toggleFavorite } from '@/services/engagement-service'
 import { addToCart, MAX_QTY_PER_ITEM } from '@/services/order-service'
 import { EntityAvatar } from '@/components/shared/entity-avatar'
@@ -46,6 +48,7 @@ export function FoodDetailView({ id }: { id: string }) {
   }
 
   const grade = calculateGrade(food)
+  const health = calculateHealthScore(food)
   const discount = discountPercent(food.originalPrice, food.price)
   const available = isPurchasable(food)
   const maxQty = Math.min(food.quantity, MAX_QTY_PER_ITEM)
@@ -179,6 +182,25 @@ export function FoodDetailView({ id }: { id: string }) {
 
           <Panel title={`Quality Score: ${food.quality.score}/100`}>
             <QualityBreakdown quality={food.quality} />
+          </Panel>
+
+          <Panel title="Health label">
+            <div className="flex flex-wrap items-center gap-2">
+              <HealthBadge health={health} className="px-3 py-1 text-xs" />
+              {getMainIngredients(food).map((m) => (
+                <span key={m} className="rounded-full bg-muted px-2.5 py-1 text-xs">{mainIngredientLabel(m)}</span>
+              ))}
+            </div>
+            {health.reasons.length > 0 && (
+              <ul className="flex flex-col gap-1 text-sm text-muted-foreground">
+                {health.reasons.map((r) => (
+                  <li key={r}>{'• '}{r}</li>
+                ))}
+              </ul>
+            )}
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Estimasi berdasarkan bahan, mengacu pola &quot;Isi Piringku&quot;. Informasi umum, bukan saran medis.
+            </p>
           </Panel>
 
           <Panel title="About this food">

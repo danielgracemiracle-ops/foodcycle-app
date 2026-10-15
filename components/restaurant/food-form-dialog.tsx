@@ -17,6 +17,8 @@ import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
+import { calculateHealthScore, getMainIngredients, MAIN_INGREDIENTS } from '@/lib/food-tags'
+import { HealthBadge } from '@/components/shared/health-badge'
 
 const PHOTOS = [
   'chicken-rice-bowl', 'nasi-goreng', 'rendang-rice', 'nasi-uduk', 'mie-ayam', 'beef-ramen', 'kwetiau', 'croissant-box', 'roti-pandan',
@@ -34,7 +36,7 @@ function blankInput(defaultPickupMinutes: number): FoodInput {
   const end = new Date(start.getTime() + defaultPickupMinutes * 60_000)
   return {
     name: '', category: 'Rice', description: '', image: PHOTOS[0], originalPrice: 0, price: 0, quantity: 5,
-    pickupStart: start.toISOString(), pickupEnd: end.toISOString(), ingredients: [], allergens: [],
+    pickupStart: start.toISOString(), pickupEnd: end.toISOString(), ingredients: [], mainIngredients: [], allergens: [],
     donationAvailable: true, freshness: 85, packaging: 80, weightKg: 0.4,
   }
 }
@@ -42,7 +44,7 @@ function blankInput(defaultPickupMinutes: number): FoodInput {
 function fromFood(f: Food): FoodInput {
   return {
     name: f.name, category: f.category, description: f.description, image: f.image, originalPrice: f.originalPrice, price: f.price,
-    quantity: f.quantity, pickupStart: f.pickupStart, pickupEnd: f.pickupEnd, ingredients: f.ingredients, allergens: f.allergens,
+    quantity: f.quantity, pickupStart: f.pickupStart, pickupEnd: f.pickupEnd, ingredients: f.ingredients, mainIngredients: getMainIngredients(f), allergens: f.allergens,
     donationAvailable: f.donationAvailable, freshness: f.quality.freshness, packaging: f.quality.packaging, weightKg: f.weightKg,
   }
 }
@@ -191,6 +193,39 @@ function FoodForm({ food, restaurantRating, defaultPickupMinutes, onDone }: {
           {(p) => <Input {...p} value={allergens} onChange={(e) => setAllergens(e.target.value)} placeholder="Egg, soy" />}
         </FormField>
       </div>
+
+      <fieldset className="flex flex-col gap-2">
+        <legend className="mb-1 text-sm font-medium">Main ingredients</legend>
+        <p className="text-xs text-muted-foreground">Customers filter by these (e.g. nasi, ayam). Pick all that apply.</p>
+        <div className="flex flex-wrap gap-2">
+          {MAIN_INGREDIENTS.map((m) => {
+            const active = input.mainIngredients.includes(m.value)
+            return (
+              <button
+                key={m.value}
+                type="button"
+                aria-pressed={active}
+                onClick={() =>
+                  set('mainIngredients', active ? input.mainIngredients.filter((v) => v !== m.value) : [...input.mainIngredients, m.value])
+                }
+                className={cn(
+                  'rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors',
+                  active ? 'border-primary bg-primary text-primary-foreground' : 'bg-background hover:border-primary/50',
+                )}
+              >
+                {m.label}
+              </button>
+            )
+          })}
+        </div>
+        {errors.mainIngredients && <p className="text-xs text-destructive">{errors.mainIngredients}</p>}
+        <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+          <span>Health label preview:</span>
+          <HealthBadge
+            health={calculateHealthScore({ ...input, ingredients: splitList(ingredients) })}
+          />
+        </div>
+      </fieldset>
 
       <div className="grid gap-5 rounded-2xl bg-muted p-4 sm:grid-cols-2">
         <div className="flex flex-col gap-4">

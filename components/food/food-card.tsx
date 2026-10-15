@@ -11,6 +11,8 @@ import { useAction, useCurrentUser, useDb } from '@/hooks/use-db'
 import { toggleFavorite } from '@/services/engagement-service'
 import { addToCart } from '@/services/order-service'
 import { GradeBadge } from '@/components/shared/grade-badge'
+import { HealthBadge } from '@/components/shared/health-badge'
+import { calculateHealthScore } from '@/lib/food-tags'
 import { QualityPill } from '@/components/shared/quality-score'
 import { RatingInline } from '@/components/shared/rating-stars'
 import { toast } from 'sonner'
@@ -100,6 +102,7 @@ export function FoodCard({ food, reason, className }: { food: Food; reason?: str
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5 text-[11px] whitespace-nowrap">
+          <HealthBadge health={calculateHealthScore(food)} compact />
           <span className="hidden rounded-full bg-secondary px-2 py-0.5 font-medium text-secondary-foreground sm:inline">{food.category}</span>
           {!soldOut && (
             <span className={cn('font-medium', food.quantity <= 2 ? 'text-destructive' : 'text-muted-foreground')}>
