@@ -12,6 +12,7 @@ import { GradeBadge } from '@/components/shared/grade-badge'
 import { EntityAvatar } from '@/components/shared/entity-avatar'
 import { PageHeader } from '@/components/shared/page'
 import { StatusBadge } from '@/components/shared/status-badge'
+import { LegalDocumentsDialog } from './legal-documents-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -138,6 +139,7 @@ export function AdminRestaurantsView() {
               <TableHead>City</TableHead>
               <TableHead className="text-right">Rating</TableHead>
               <TableHead className="text-right">Listings</TableHead>
+              <TableHead>Documents</TableHead>
               <TableHead>Verification</TableHead>
               <TableHead className="text-right"><span className="sr-only">Actions</span></TableHead>
             </TableRow>
@@ -157,6 +159,7 @@ export function AdminRestaurantsView() {
                 <TableCell>{r.city}</TableCell>
                 <TableCell className="text-right tabular-nums">{r.rating.toFixed(1)}</TableCell>
                 <TableCell className="text-right tabular-nums">{db.foods.filter((f) => f.restaurantId === r.id).length}</TableCell>
+                <TableCell><LegalDocumentsDialog name={r.name} legal={r.legal} /></TableCell>
                 <TableCell><StatusBadge status={r.verification} /></TableCell>
                 <TableCell className="text-right"><VerificationActions status={r.verification} onSet={(v) => verify(r.id, v)} /></TableCell>
               </TableRow>
@@ -187,6 +190,7 @@ export function AdminInstitutionsView() {
               <TableHead>City</TableHead>
               <TableHead className="text-right">Meals needed</TableHead>
               <TableHead className="text-right">Donations</TableHead>
+              <TableHead>Documents</TableHead>
               <TableHead>Verification</TableHead>
               <TableHead className="text-right"><span className="sr-only">Actions</span></TableHead>
             </TableRow>
@@ -201,6 +205,7 @@ export function AdminInstitutionsView() {
                 <TableCell>{i.city}</TableCell>
                 <TableCell className="text-right tabular-nums">{i.mealsNeeded}</TableCell>
                 <TableCell className="text-right tabular-nums">{db.donations.filter((d) => d.institutionId === i.id).length}</TableCell>
+                <TableCell><LegalDocumentsDialog name={i.name} legal={i.legal} /></TableCell>
                 <TableCell><StatusBadge status={i.verification} /></TableCell>
                 <TableCell className="text-right"><VerificationActions status={i.verification} onSet={(v) => verify(i.id, v)} /></TableCell>
               </TableRow>

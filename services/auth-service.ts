@@ -1,4 +1,5 @@
 import type { Role, User } from '@/types'
+import { toInstitutionLegal, toRestaurantLegal, validateLegal, type LegalDraft } from '@/lib/registration'
 import { commit, getDb, hasCredentials, setPassword, verifyPassword } from './mock-db'
 import { delay, notifyAdmins, requireUser, ServiceError, uid } from './utils'
 
@@ -39,6 +40,7 @@ export interface RegisterInput {
   phone?: string
   location?: string
   organization?: string
+  legal?: LegalDraft
 }
 
 export async function register(input: RegisterInput): Promise<User> {
@@ -47,6 +49,13 @@ export async function register(input: RegisterInput): Promise<User> {
   if (!EMAIL_RE.test(email)) throw new ServiceError('Please enter a valid email address.')
   if (input.password.length < 8) throw new ServiceError('Password must be at least 8 characters.')
   if (input.role === 'admin') throw new ServiceError('Admin accounts cannot be self-registered.')
+  const partnerRole = input.role === 'restaurant' || input.role === 'institution' ? input.role : null
+  if (partnerRole) {
+    if (!input.legal) throw new ServiceError('Legal documents and a bank account are required.')
+    const legalErrors = validateLegal(partnerRole, input.legal)
+    const first = Object.values(legalErrors)[0]
+    if (first) throw new ServiceError(first)
+  }
   const db = getDb()
   if (db.users.some((u) => u.email.toLowerCase() === email) || hasCredentials(email))
     throw new ServiceError('An account with this email already exists.')
@@ -86,6 +95,7 @@ export async function register(input: RegisterInput): Promise<User> {
         verification: 'pending',
         defaultPickupMinutes: 90,
         logoColor: 'chart-1',
+        legal: input.legal && toRestaurantLegal(input.legal),
         createdAt: now,
       })
       notifyAdmins(draft, 'system', 'New restaurant registration', `${input.organization || user.name} is awaiting verification.`, '/admin/restaurants')
@@ -110,6 +120,7 @@ export async function register(input: RegisterInput): Promise<User> {
         preferredCategories: ['Rice'],
         maxDailyCapacity: 30,
         preferredPickupTime: '16:00–18:00',
+        legal: input.legal && toInstitutionLegal(input.legal),
         createdAt: now,
       })
       notifyAdmins(draft, 'system', 'New institution registration', `${input.organization || user.name} is awaiting verification.`, '/admin/institutions')

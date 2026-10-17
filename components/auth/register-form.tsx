@@ -13,6 +13,8 @@ import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { FormField } from '@/components/shared/form-field'
+import { EMPTY_LEGAL, validateLegal, type LegalDraft } from '@/lib/registration'
+import { LegalFields } from './legal-fields'
 
 const ROLES: { value: Exclude<Role, 'admin'>; label: string; desc: string; icon: typeof Store }[] = [
   { value: 'customer', label: 'Customer', desc: 'Buy & donate food', icon: ShoppingBag },
@@ -27,6 +29,8 @@ export function RegisterForm() {
   const [role, setRole] = useState<Exclude<Role, 'admin'>>('customer')
   const [form, setForm] = useState({ name: '', organization: '', email: '', phone: '', location: '', password: '', confirm: '' })
   const [agree, setAgree] = useState(false)
+  const [legal, setLegal] = useState<LegalDraft>(EMPTY_LEGAL)
+  const [legalErrors, setLegalErrors] = useState<Partial<Record<keyof LegalDraft, string>>>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [formError, setFormError] = useState('')
   const [pending, setPending] = useState(false)
@@ -42,8 +46,12 @@ export function RegisterForm() {
     if (form.password.length < 8) e.password = 'Use at least 8 characters.'
     if (form.confirm !== form.password) e.confirm = 'Passwords do not match.'
     if (!agree) e.agree = 'You must accept the terms to continue.'
+    const le = needsOrg ? validateLegal(role as 'restaurant' | 'institution', legal) : {}
     setErrors(e)
-    return Object.keys(e).length === 0
+    setLegalErrors(le)
+    const ok = Object.keys(e).length === 0 && Object.keys(le).length === 0
+    if (!ok && Object.keys(le).length > 0 && Object.keys(e).length === 0) setFormError('Please complete the highlighted document fields.')
+    return ok
   }
 
   const submit = async (e: React.FormEvent) => {
@@ -52,7 +60,7 @@ export function RegisterForm() {
     if (!validate()) return
     setPending(true)
     try {
-      const user = await register({ role, name: form.name, email: form.email, password: form.password, phone: form.phone || undefined, location: form.location || undefined, organization: form.organization || undefined })
+      const user = await register({ role, name: form.name, email: form.email, password: form.password, phone: form.phone || undefined, location: form.location || undefined, organization: form.organization || undefined, legal: needsOrg ? legal : undefined })
       toast.success(role === 'customer' ? 'Account created. Welcome to FoodCycle!' : 'Account created. Your profile is pending admin verification.')
       router.replace(ROLE_HOME[user.role])
     } catch (err) {
@@ -116,6 +124,8 @@ export function RegisterForm() {
             {(p) => <Input {...p} type="password" autoComplete="new-password" value={form.confirm} onChange={set('confirm')} className="h-11" />}
           </FormField>
         </div>
+
+        {needsOrg && <LegalFields role={role as 'restaurant' | 'institution'} value={legal} onChange={setLegal} errors={legalErrors} />}
 
         <div className="flex flex-col gap-1.5">
           <div className="flex items-start gap-2.5">
