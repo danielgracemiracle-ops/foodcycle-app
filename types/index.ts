@@ -325,6 +325,9 @@ export interface CheckoutDraft {
   type: OrderType
   institutionId?: string
   message?: string
+  /** Idempotency key of the server-side 10-minute stock hold. */
+  holdKey?: string
+  holdExpiresAt?: string
 }
 
 export interface SystemSettings {
