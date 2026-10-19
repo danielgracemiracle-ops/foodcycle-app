@@ -2,7 +2,7 @@
 
 import { Building2, CreditCard, HandHeart, Landmark, Loader2, Lock, Smartphone } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
 import type { PaymentMethod } from '@/types'
 import { useCurrentUser, useDb, useHydrated } from '@/hooks/use-db'
@@ -14,6 +14,7 @@ import { ButtonLink } from '@/components/shared/button-link'
 import { EmptyState, PageHeader, Panel } from '@/components/shared/page'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
+import { HoldCountdown } from './hold-countdown'
 import { SummaryLines, SummaryTotals } from './order-summary'
 
 const METHODS: { value: PaymentMethod; icon: typeof CreditCard; body: string }[] = [
@@ -31,6 +32,8 @@ export function PaymentView() {
   const [simulateFailure, setSimulateFailure] = useState(false)
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState<string>()
+  const [expired, setExpired] = useState(false)
+  const handleExpire = useCallback(() => setExpired(true), [])
 
   if (!hydrated || !user) return <div className="h-80 animate-pulse rounded-3xl bg-muted" />
 
@@ -39,7 +42,7 @@ export function PaymentView() {
   const totals = cartTotals(lines)
   const institution = draft?.institutionId ? db.institutions.find((i) => i.id === draft.institutionId) : undefined
 
-  if (!draft || lines.length === 0) {
+  if (!draft?.holdKey || !draft.holdExpiresAt || lines.length === 0) {
     return (
       <EmptyState
         icon={CreditCard}
@@ -51,6 +54,7 @@ export function PaymentView() {
   }
 
   const pay = async () => {
+    if (processing || expired) return
     setError(undefined)
     setProcessing(true)
     try {
@@ -123,12 +127,17 @@ export function PaymentView() {
           </p>
           <SummaryLines lines={lines} />
           <SummaryTotals totals={totals} />
+          <HoldCountdown expiresAt={draft.holdExpiresAt} onExpire={handleExpire} />
           {error && <p role="alert" className="rounded-xl bg-destructive/10 p-3 text-sm font-medium text-destructive">{error}</p>}
-          <Button size="lg" onClick={pay} disabled={processing}>
+          <Button size="lg" onClick={pay} disabled={processing || expired}>
             {processing ? <Loader2 data-icon="inline-start" className="animate-spin" /> : <Lock data-icon="inline-start" />}
             {processing ? 'Processing payment…' : `Pay Now · ${formatRupiah(totals.total)}`}
           </Button>
-          {!processing && <ButtonLink href="/checkout" variant="ghost">Back to checkout</ButtonLink>}
+          {!processing && (
+            <ButtonLink href="/checkout" variant={expired ? 'default' : 'ghost'}>
+              {expired ? 'Reserve again at checkout' : 'Back to checkout'}
+            </ButtonLink>
+          )}
         </Panel>
       </div>
     </div>
