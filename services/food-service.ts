@@ -2,6 +2,7 @@ import type { Food, FoodCategory, FoodStatus } from '@/types'
 import { calculateQualityScore, ratingToScore } from '@/lib/quality'
 import type { MainIngredient } from '@/lib/food-tags'
 import { commit, getDb } from './mock-db'
+import { registerStock, setServerStock } from './stock-api'
 import { delay, requireUser, ServiceError, uid } from './utils'
 
 export interface FoodInput {
@@ -89,6 +90,7 @@ export async function createFood(input: FoodInput): Promise<Food> {
     status: 'active',
     createdAt: new Date().toISOString(),
   }
+  await registerStock([{ foodId: food.id, quantity: food.quantity }])
   commit((d) => {
     d.foods.unshift(food)
   })
@@ -100,6 +102,8 @@ export async function updateFood(foodId: string, input: FoodInput) {
   const { food } = requireOwnFood(foodId)
   const errors = validateFoodInput(input)
   if (Object.keys(errors).length) throw new ServiceError(Object.values(errors)[0])
+  // Only overwrite the shared stock when the restaurant actually changed it, so a purchase made meanwhile is kept.
+  if (input.quantity !== food.quantity) await setServerStock(foodId, input.quantity)
   commit((d) => {
     const f = d.foods.find((x) => x.id === foodId)!
     Object.assign(f, {
