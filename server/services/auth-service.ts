@@ -1,64 +1,64 @@
-import type { Role, User } from '@/types'
-import { toInstitutionLegal, toRestaurantLegal, validateLegal, type LegalDraft } from '@/lib/registration'
-import { commit, getDb, hasCredentials, setPassword, verifyPassword } from './mock-db'
-import { delay, notifyAdmins, requireUser, ServiceError, uid } from './utils'
-
-export const ROLE_HOME: Record<Role, string> = {
-  customer: '/home',
-  restaurant: '/restaurant',
-  institution: '/institution',
-  admin: '/admin',
-}
+import 'server-only'
+import { headers } from 'next/headers'
+import type { User } from '@/types'
+import { DEMO_ACCOUNTS } from '@/data/seed'
+import { auth } from '@/lib/auth'
+import { toInstitutionLegal, toRestaurantLegal, validateLegal } from '@/lib/registration'
+import type { RegisterInput } from '@/lib/roles'
+import { commit, getDb } from './mock-db'
+import { notifyAdmins, requireUser, ServiceError, uid } from './utils'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-function device() {
-  if (typeof navigator === 'undefined') return 'Unknown device'
-  const ua = navigator.userAgent
-  const browser = /Edg/.test(ua) ? 'Edge' : /Chrome/.test(ua) ? 'Chrome' : /Safari/.test(ua) ? 'Safari' : /Firefox/.test(ua) ? 'Firefox' : 'Browser'
-  const os = /Mac/.test(ua) ? 'macOS' : /Win/.test(ua) ? 'Windows' : /Android/.test(ua) ? 'Android' : /iPhone|iPad/.test(ua) ? 'iOS' : 'Linux'
-  return `${browser} on ${os}`
+function startSession(user: User, device: string) {
+  const db = getDb()
+  db.session = { userId: user.id, createdAt: new Date().toISOString(), device }
+}
+
+async function signIn(email: string, password: string) {
+  await auth.api.signInEmail({ body: { email, password }, headers: await headers() })
 }
 
 export async function login(email: string, password: string): Promise<User> {
-  await delay(600)
   const normalized = email.trim().toLowerCase()
   const user = getDb().users.find((u) => u.email.toLowerCase() === normalized)
-  if (!user || !verifyPassword(normalized, password)) throw new ServiceError('Incorrect email or password.')
+  if (!user) throw new ServiceError('Incorrect email or password.')
   if (user.status === 'suspended') throw new ServiceError('This account has been suspended. Please contact support.')
-  commit((db) => {
-    db.session = { userId: user.id, createdAt: new Date().toISOString(), device: device() }
-  })
+  try {
+    await signIn(normalized, password)
+  } catch {
+    const demo = DEMO_ACCOUNTS.find((a) => a.email === normalized && a.password === password)
+    if (!demo) throw new ServiceError('Incorrect email or password.')
+    try {
+      await auth.api.signUpEmail({ body: { email: normalized, password, name: user.name }, headers: await headers() })
+    } catch {
+      throw new ServiceError('Incorrect email or password.')
+    }
+  }
+  startSession(user, (await headers()).get('user-agent') ?? 'Unknown device')
   return user
 }
 
-export interface RegisterInput {
-  role: Role
-  name: string
-  email: string
-  password: string
-  phone?: string
-  location?: string
-  organization?: string
-  legal?: LegalDraft
-}
-
 export async function register(input: RegisterInput): Promise<User> {
-  await delay(700)
   const email = input.email.trim().toLowerCase()
   if (!EMAIL_RE.test(email)) throw new ServiceError('Please enter a valid email address.')
   if (input.password.length < 8) throw new ServiceError('Password must be at least 8 characters.')
-  if (input.role === 'admin') throw new ServiceError('Admin accounts cannot be self-registered.')
+  if (input.role !== 'customer' && input.role !== 'restaurant' && input.role !== 'institution')
+    throw new ServiceError('This account type cannot be self-registered.')
   const partnerRole = input.role === 'restaurant' || input.role === 'institution' ? input.role : null
   if (partnerRole) {
     if (!input.legal) throw new ServiceError('Legal documents and a bank account are required.')
-    const legalErrors = validateLegal(partnerRole, input.legal)
-    const first = Object.values(legalErrors)[0]
+    const first = Object.values(validateLegal(partnerRole, input.legal))[0]
     if (first) throw new ServiceError(first)
   }
-  const db = getDb()
-  if (db.users.some((u) => u.email.toLowerCase() === email) || hasCredentials(email))
+  if (getDb().users.some((u) => u.email.toLowerCase() === email))
     throw new ServiceError('An account with this email already exists.')
+
+  try {
+    await auth.api.signUpEmail({ body: { email, password: input.password, name: input.name.trim() }, headers: await headers() })
+  } catch {
+    throw new ServiceError('We could not create this account. Try a different email or sign in.')
+  }
 
   const now = new Date().toISOString()
   const userId = uid('u')
@@ -73,7 +73,6 @@ export async function register(input: RegisterInput): Promise<User> {
     createdAt: now,
   }
 
-  setPassword(email, input.password)
   commit((draft) => {
     if (input.role === 'restaurant') {
       const id = uid('r')
@@ -136,45 +135,37 @@ export async function register(input: RegisterInput): Promise<User> {
       privacy: { showProfile: true, shareImpact: true, twoFactor: false },
     })
     draft.carts[userId] = []
-    draft.session = { userId, createdAt: now, device: device() }
   })
+  startSession(user, (await headers()).get('user-agent') ?? 'Unknown device')
   return user
 }
 
 export async function logout() {
-  await delay(200)
-  commit((db) => {
-    db.session = null
-  })
+  await auth.api.signOut({ headers: await headers() }).catch(() => {})
 }
 
 export async function requestPasswordReset(email: string) {
-  await delay(700)
   if (!EMAIL_RE.test(email.trim())) throw new ServiceError('Please enter a valid email address.')
   // Always succeed to avoid leaking which emails are registered.
   return { email: email.trim().toLowerCase() }
 }
 
-export async function resetPassword(email: string, newPassword: string) {
-  await delay(600)
-  if (newPassword.length < 8) throw new ServiceError('Password must be at least 8 characters.')
-  const exists = getDb().users.some((u) => u.email.toLowerCase() === email.toLowerCase())
-  if (!exists) throw new ServiceError('This reset link is invalid or has expired.')
-  setPassword(email, newPassword)
+export async function resetPassword(_email: string, _newPassword: string) {
+  throw new ServiceError('Password reset by email is not available yet. Please contact support to recover your account.')
 }
 
 export async function changePassword(current: string, next: string) {
-  await delay(500)
-  const user = requireUser()
-  if (!verifyPassword(user.email, current)) throw new ServiceError('Your current password is incorrect.')
+  requireUser()
   if (next.length < 8) throw new ServiceError('New password must be at least 8 characters.')
   if (current === next) throw new ServiceError('New password must be different from the current one.')
-  setPassword(user.email, next)
+  try {
+    await auth.api.changePassword({ body: { currentPassword: current, newPassword: next }, headers: await headers() })
+  } catch {
+    throw new ServiceError('Your current password is incorrect.')
+  }
 }
 
 export async function logoutAllDevices() {
-  await delay(400)
-  commit((db) => {
-    db.session = null
-  })
+  requireUser()
+  await auth.api.revokeSessions({ headers: await headers() }).catch(() => {})
 }
