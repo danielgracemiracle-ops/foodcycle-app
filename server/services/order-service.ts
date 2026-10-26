@@ -2,11 +2,10 @@ import type { CheckoutDraft, Db, Donation, DonationStatus, Order, OrderItem, Ord
 import { calculateGrade } from '@/lib/quality'
 import { isPurchasable } from '@/lib/recommendation'
 import { formatRupiah } from '@/lib/format'
+import { DONATION_FLOW, MAX_QTY_PER_ITEM, ORDER_FLOW } from '@/lib/order-flow'
 import { commit, getDb } from './mock-db'
 import { confirmCheckout, holdCheckout, refreshStock, releaseCheckout, returnStock } from './stock-api'
 import { delay, notify, requireUser, ServiceError, uid } from './utils'
-
-export const MAX_QTY_PER_ITEM = 10
 
 /** Any cart change invalidates the reserved stock, so the customer must check out again. */
 function dropCheckoutHold(userId: string) {
@@ -252,9 +251,6 @@ function returnOrderStock(order: Order | undefined) {
 
 /* ------------------------ order lifecycle ------------------------ */
 
-export const ORDER_FLOW: OrderStatus[] = ['Payment Confirmed', 'Restaurant Confirmed', 'Preparing', 'Ready for Pickup', 'Picked Up', 'Completed']
-
-export const DONATION_FLOW: DonationStatus[] = ['Purchased', 'Accepted', 'Restaurant Confirmed', 'Preparing', 'Picked Up', 'Delivered', 'Received']
 
 function pushOrderStatus(order: Order, status: OrderStatus) {
   order.status = status
