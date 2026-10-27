@@ -8,7 +8,8 @@ export class ServiceError extends Error {
   }
 }
 
-export const delay = (ms = 450) => new Promise((r) => setTimeout(r, ms))
+/** Former mock latency. A no-op on the server so the row lock is held as briefly as possible. */
+export const delay = (_ms?: number) => Promise.resolve()
 
 export function uid(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
