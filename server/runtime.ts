@@ -41,7 +41,14 @@ export async function withAppDb<T>(fn: () => Promise<T>): Promise<T> {
     await client.query('BEGIN')
     const db = await loadDoc(client, true)
     await attachSession(db)
-    const ctx = { db, dirty: false }
+    const ctx = {
+      db,
+      dirty: false,
+      nextval: async (sequence: 'order_number_seq' | 'donation_number_seq') => {
+        const res = await client.query<{ n: string }>('SELECT nextval($1::regclass) AS n', [sequence])
+        return Number(res.rows[0].n)
+      },
+    }
     const result = await dbContext.run(ctx, fn)
     if (ctx.dirty)
       await client.query('UPDATE app_state SET doc = $1, updated_at = now() WHERE id = 1', [

@@ -3,7 +3,7 @@ import { calculateGrade } from '@/lib/quality'
 import { isPurchasable } from '@/lib/recommendation'
 import { formatRupiah } from '@/lib/format'
 import { DONATION_FLOW, MAX_QTY_PER_ITEM, ORDER_FLOW } from '@/lib/order-flow'
-import { commit, getDb } from './mock-db'
+import { commit, getDb, nextNumber } from './mock-db'
 import { confirmCheckout, holdCheckout, refreshStock, releaseCheckout, returnStock } from './stock-api'
 import { delay, notify, requireUser, ServiceError, uid } from './utils'
 
@@ -146,7 +146,11 @@ export async function processPayment(method: PaymentMethod, simulateFailure = fa
     const restaurantId = db.foods.find((f) => f.id === c.foodId)!.restaurantId
     byRestaurant.set(restaurantId, [...(byRestaurant.get(restaurantId) ?? []), c])
   }
-  const plannedIds = [...byRestaurant.keys()].map(() => `ORD-${Math.floor(1100 + Math.random() * 8900)}`)
+  const plannedIds: string[] = []
+  for (const _ of byRestaurant.keys()) plannedIds.push(`ORD-${await nextNumber('order_number_seq')}`)
+  const donationIds: string[] = []
+  if (draft.type === 'donation' && draft.institutionId)
+    for (const _ of byRestaurant.keys()) donationIds.push(`DON-${await nextNumber('donation_number_seq')}`)
 
   // The server is the single source of truth: a double click or retry with the same key never creates a second order.
   const confirmation = await confirmCheckout(holdKey, user.id, plannedIds)
@@ -208,7 +212,7 @@ export async function processPayment(method: PaymentMethod, simulateFailure = fa
       const restaurant = d.restaurants.find((r) => r.id === restaurantId)
       if (draft.type === 'donation' && draft.institutionId) {
         const donation: Donation = {
-          id: `DON-${Math.floor(400 + Math.random() * 9000)}`,
+          id: donationIds[index],
           orderId,
           donorId: user.id,
           restaurantId,

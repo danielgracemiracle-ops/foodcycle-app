@@ -11,6 +11,7 @@ import type { Db } from '@/types'
 export interface DbContext {
   db: Db
   dirty: boolean
+  nextval?: (sequence: 'order_number_seq' | 'donation_number_seq') => Promise<number>
 }
 
 export const dbContext = new AsyncLocalStorage<DbContext>()
@@ -22,6 +23,13 @@ function context() {
 }
 
 export const getDb = () => context().db
+
+/** Database-generated, gap-tolerant and collision-free numbers (Postgres sequences are never reused). */
+export async function nextNumber(sequence: 'order_number_seq' | 'donation_number_seq') {
+  const nextval = context().nextval
+  if (!nextval) throw new Error('Sequence access requires a write context')
+  return nextval(sequence)
+}
 
 export function commit(mutator: (draft: Db) => void) {
   const ctx = context()
