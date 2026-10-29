@@ -54,12 +54,23 @@ export interface BankAccount {
 }
 
 /** table: restaurant_documents */
+/** A scanned legal file in private Blob storage. Served only via /api/legal-docs. */
+export interface LegalDocument {
+  kind: import('@/lib/legal-docs').DocKind
+  pathname: string
+  name: string
+  contentType: string
+  size: number
+  uploadedAt: string
+}
+
 export interface RestaurantLegal {
   ownerNik: string
   nib: string
   npwp: string
   foodPermit: string
   halalCertificate?: string
+  documents?: LegalDocument[]
   bank: BankAccount
   agreedRules: boolean
   submittedAt: string
@@ -74,6 +85,7 @@ export interface InstitutionLegal {
   picName: string
   picNik: string
   beneficiaries: number
+  documents?: LegalDocument[]
   bank: BankAccount
   agreedRules: boolean
   submittedAt: string
