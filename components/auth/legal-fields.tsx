@@ -1,8 +1,10 @@
 'use client'
 
-import { FileCheck2, Landmark } from 'lucide-react'
-import { BANKS, INSTITUTION_RULES, RESTAURANT_RULES, type LegalDraft } from '@/lib/registration'
+import { FileCheck2, FolderUp, Landmark } from 'lucide-react'
+import { BANKS, INSTITUTION_RULES, RESTAURANT_RULES, type LegalDraft, type LegalErrors } from '@/lib/registration'
+import { DOC_SPECS, type DocKind, type UploadedDoc } from '@/lib/legal-docs'
 import { FormField } from '@/components/shared/form-field'
+import { DocumentUpload } from './document-upload'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -12,10 +14,11 @@ interface LegalFieldsProps {
   role: 'restaurant' | 'institution'
   value: LegalDraft
   onChange: (next: LegalDraft) => void
-  errors: Partial<Record<keyof LegalDraft, string>>
+  onDocument: (kind: DocKind, doc: UploadedDoc | undefined) => void
+  errors: LegalErrors
 }
 
-type TextKey = Exclude<keyof LegalDraft, 'agreedRules'>
+type TextKey = Exclude<keyof LegalDraft, 'agreedRules' | 'documents'>
 
 function Section({ icon: Icon, title, description, children }: { icon: typeof Landmark; title: string; description: string; children: React.ReactNode }) {
   return (
@@ -35,7 +38,7 @@ function Section({ icon: Icon, title, description, children }: { icon: typeof La
   )
 }
 
-export function LegalFields({ role, value, onChange, errors }: LegalFieldsProps) {
+export function LegalFields({ role, value, onChange, onDocument, errors }: LegalFieldsProps) {
   const set = (k: TextKey) => (e: React.ChangeEvent<HTMLInputElement>) => onChange({ ...value, [k]: e.target.value })
   const text = (k: TextKey, label: string, opts: { hint?: string; numeric?: boolean; placeholder?: string; autoComplete?: string } = {}) => (
     <FormField label={label} error={errors[k]} hint={opts.hint}>
@@ -80,6 +83,24 @@ export function LegalFields({ role, value, onChange, errors }: LegalFieldsProps)
             {text('beneficiaries', 'People you serve', { numeric: true, placeholder: 'e.g. 45' })}
           </div>
         )}
+      </Section>
+
+      <Section
+        icon={FolderUp}
+        title="Document files"
+        description="Upload a clear photo or PDF of each document. Files are stored privately and only FoodCycle admins can open them."
+      >
+        <div className="flex flex-col gap-3">
+          {DOC_SPECS[role].map((spec) => (
+            <DocumentUpload
+              key={spec.kind}
+              spec={spec}
+              value={value.documents[spec.kind]}
+              error={errors[spec.kind]}
+              onChange={(doc) => onDocument(spec.kind, doc)}
+            />
+          ))}
+        </div>
       </Section>
 
       <Section

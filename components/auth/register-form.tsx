@@ -13,7 +13,8 @@ import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { FormField } from '@/components/shared/form-field'
-import { EMPTY_LEGAL, validateLegal, type LegalDraft } from '@/lib/registration'
+import { EMPTY_LEGAL, validateLegal, type LegalDraft, type LegalErrors } from '@/lib/registration'
+import type { DocKind, UploadedDoc } from '@/lib/legal-docs'
 import { LegalFields } from './legal-fields'
 
 const ROLES: { value: Exclude<Role, 'admin'>; label: string; desc: string; icon: typeof Store }[] = [
@@ -30,7 +31,11 @@ export function RegisterForm() {
   const [form, setForm] = useState({ name: '', organization: '', email: '', phone: '', location: '', password: '', confirm: '' })
   const [agree, setAgree] = useState(false)
   const [legal, setLegal] = useState<LegalDraft>(EMPTY_LEGAL)
-  const [legalErrors, setLegalErrors] = useState<Partial<Record<keyof LegalDraft, string>>>({})
+  const [legalErrors, setLegalErrors] = useState<LegalErrors>({})
+  const setDocument = (kind: DocKind, doc: UploadedDoc | undefined) => {
+    setLegal((l) => ({ ...l, documents: { ...l.documents, [kind]: doc } }))
+    setLegalErrors(({ [kind]: _cleared, ...rest }) => rest)
+  }
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [formError, setFormError] = useState('')
   const [pending, setPending] = useState(false)
@@ -125,7 +130,7 @@ export function RegisterForm() {
           </FormField>
         </div>
 
-        {needsOrg && <LegalFields role={role as 'restaurant' | 'institution'} value={legal} onChange={setLegal} errors={legalErrors} />}
+        {needsOrg && <LegalFields role={role as 'restaurant' | 'institution'} value={legal} onChange={setLegal} onDocument={setDocument} errors={legalErrors} />}
 
         <div className="flex flex-col gap-1.5">
           <div className="flex items-start gap-2.5">
