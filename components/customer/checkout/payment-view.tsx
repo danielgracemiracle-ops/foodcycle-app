@@ -1,48 +1,46 @@
 'use client'
 
-import { Building2, CreditCard, HandHeart, Landmark, Loader2, Lock, Smartphone } from 'lucide-react'
+import { CreditCard, ExternalLink, HandHeart, Loader2, Lock, RefreshCw } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useCallback, useState } from 'react'
+import useSWR from 'swr'
 import { toast } from 'sonner'
-import type { PaymentMethod } from '@/types'
 import { useCurrentUser, useDb, useHydrated } from '@/hooks/use-db'
 import { cartLines, cartTotals } from '@/lib/selectors'
 import { formatRupiah } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { processPayment } from '@/services/order-service'
+import { listPaymentChannels, startPayment } from '@/services/order-service'
 import { ButtonLink } from '@/components/shared/button-link'
 import { EmptyState, PageHeader, Panel } from '@/components/shared/page'
 import { Button } from '@/components/ui/button'
-import { Switch } from '@/components/ui/switch'
 import { HoldCountdown } from './hold-countdown'
 import { SummaryLines, SummaryTotals } from './order-summary'
-
-const METHODS: { value: PaymentMethod; icon: typeof CreditCard; body: string }[] = [
-  { value: 'E-Wallet', icon: Smartphone, body: 'GoPay, OVO, DANA, ShopeePay' },
-  { value: 'Bank Transfer', icon: Landmark, body: 'BCA, Mandiri, BNI, BRI' },
-  { value: 'Virtual Account', icon: Building2, body: 'Pay via any bank VA number' },
-]
 
 export function PaymentView() {
   const db = useDb()
   const user = useCurrentUser()
   const hydrated = useHydrated()
   const router = useRouter()
-  const [method, setMethod] = useState<PaymentMethod>('E-Wallet')
-  const [simulateFailure, setSimulateFailure] = useState(false)
+  const [method, setMethod] = useState<string>()
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState<string>()
   const [expired, setExpired] = useState(false)
   const handleExpire = useCallback(() => setExpired(true), [])
 
+  const draft = user ? db.checkoutDrafts[user.id] : undefined
+  const lines = user ? cartLines(db, user.id) : []
+  const totals = cartTotals(lines)
+  const ready = Boolean(hydrated && user && draft?.holdKey && draft.holdExpiresAt && lines.length > 0)
+
+  const channels = useSWR(ready ? ['payment-channels', totals.total] : null, () => listPaymentChannels(), {
+    revalidateOnFocus: false,
+  })
+
   if (!hydrated || !user) return <div className="h-80 animate-pulse rounded-3xl bg-muted" />
 
-  const draft = db.checkoutDrafts[user.id]
-  const lines = cartLines(db, user.id)
-  const totals = cartTotals(lines)
   const institution = draft?.institutionId ? db.institutions.find((i) => i.id === draft.institutionId) : undefined
 
-  if (!draft?.holdKey || !draft.holdExpiresAt || lines.length === 0) {
+  if (!ready || !draft?.holdExpiresAt) {
     return (
       <EmptyState
         icon={CreditCard}
@@ -53,15 +51,24 @@ export function PaymentView() {
     )
   }
 
+  const selected = channels.data?.find((c) => c.code === method)
+  const fee = selected?.fee ?? 0
+
   const pay = async () => {
-    if (processing || expired) return
+    if (processing || expired || !method) return
     setError(undefined)
     setProcessing(true)
     try {
-      const ids = await processPayment(method, simulateFailure)
-      router.push(`/payment/success?orders=${ids.join(',')}`)
+      const { paymentUrl, merchantOrderId } = await startPayment(method)
+      if (window.self !== window.top) {
+        // Duitku's page cannot load inside the preview frame, so open it in a new tab and wait here.
+        window.open(paymentUrl, '_blank', 'noopener')
+        router.push(`/payment/return?merchantOrderId=${encodeURIComponent(merchantOrderId)}`)
+      } else {
+        window.location.href = paymentUrl
+      }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Payment failed'
+      const msg = e instanceof Error ? e.message : 'Could not start the payment'
       setError(msg)
       toast.error(msg)
       setProcessing(false)
@@ -70,41 +77,58 @@ export function PaymentView() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="Payment" description="This is a simulated payment — no real money is charged." />
+      <PageHeader title="Payment" description="Pay securely through Duitku. Your portions stay reserved until the timer runs out." />
       <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
         <div className="flex flex-col gap-6">
           <Panel title="Payment method">
-            <div role="radiogroup" aria-label="Payment method" className="flex flex-col gap-3">
-              {METHODS.map((m) => (
-                <button
-                  key={m.value}
-                  type="button"
-                  role="radio"
-                  aria-checked={method === m.value}
-                  disabled={processing}
-                  onClick={() => setMethod(m.value)}
-                  className={cn(
-                    'flex items-center gap-4 rounded-2xl border-2 p-4 text-left transition-colors disabled:opacity-60',
-                    method === m.value ? 'border-primary bg-accent/60' : 'border-border hover:border-primary/40',
-                  )}
-                >
-                  <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted">
-                    <m.icon className="size-5 text-primary" aria-hidden="true" />
-                  </span>
-                  <span className="flex flex-col">
-                    <span className="font-semibold">{m.value}</span>
-                    <span className="text-sm text-muted-foreground">{m.body}</span>
-                  </span>
-                </button>
-              ))}
-            </div>
-            <label className="flex items-center justify-between gap-3 rounded-xl border border-dashed p-3 text-sm">
-              <span className="flex flex-col">
-                <span className="font-medium">Simulate a declined payment</span>
-                <span className="text-xs text-muted-foreground">Prototype only — test the failure state.</span>
-              </span>
-              <Switch checked={simulateFailure} onCheckedChange={setSimulateFailure} disabled={processing} />
-            </label>
+            {channels.isLoading && (
+              <div className="flex flex-col gap-3" aria-busy="true" aria-label="Loading payment methods">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="h-16 animate-pulse rounded-2xl bg-muted" />
+                ))}
+              </div>
+            )}
+            {channels.error && (
+              <div className="flex flex-col items-start gap-3 rounded-xl bg-destructive/10 p-4 text-sm">
+                <p role="alert" className="font-medium text-destructive">
+                  {channels.error instanceof Error ? channels.error.message : 'Could not load payment methods.'}
+                </p>
+                <Button variant="outline" size="sm" onClick={() => channels.mutate()}>
+                  <RefreshCw data-icon="inline-start" />
+                  Try again
+                </Button>
+              </div>
+            )}
+            {channels.data && channels.data.length === 0 && (
+              <p className="text-sm text-muted-foreground">No payment methods are available for this amount.</p>
+            )}
+            {channels.data && channels.data.length > 0 && (
+              <div role="radiogroup" aria-label="Payment method" className="grid gap-3 sm:grid-cols-2">
+                {channels.data.map((c) => (
+                  <button
+                    key={c.code}
+                    type="button"
+                    role="radio"
+                    aria-checked={method === c.code}
+                    disabled={processing}
+                    onClick={() => setMethod(c.code)}
+                    className={cn(
+                      'flex items-center gap-3 rounded-2xl border-2 p-3 text-left transition-colors disabled:opacity-60',
+                      method === c.code ? 'border-primary bg-accent/60' : 'border-border hover:border-primary/40',
+                    )}
+                  >
+                    <span className="flex h-10 w-14 shrink-0 items-center justify-center rounded-lg bg-card p-1">
+                      {/* eslint-disable-next-line @next/next/no-img-element -- logos are served by Duitku */}
+                      <img src={c.image} alt="" className="max-h-full max-w-full object-contain" />
+                    </span>
+                    <span className="flex min-w-0 flex-col">
+                      <span className="truncate font-semibold">{c.name}</span>
+                      <span className="text-xs text-muted-foreground">{c.fee > 0 ? `Fee ${formatRupiah(c.fee)}` : 'No fee'}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
           </Panel>
 
           {draft.type === 'donation' && institution && (
@@ -127,12 +151,22 @@ export function PaymentView() {
           </p>
           <SummaryLines lines={lines} />
           <SummaryTotals totals={totals} />
+          {fee > 0 && (
+            <p className="flex justify-between text-sm text-muted-foreground">
+              <span>Payment fee ({selected?.name})</span>
+              <span>{formatRupiah(fee)}</span>
+            </p>
+          )}
           <HoldCountdown expiresAt={draft.holdExpiresAt} onExpire={handleExpire} />
           {error && <p role="alert" className="rounded-xl bg-destructive/10 p-3 text-sm font-medium text-destructive">{error}</p>}
-          <Button size="lg" onClick={pay} disabled={processing || expired}>
+          <Button size="lg" onClick={pay} disabled={processing || expired || !method}>
             {processing ? <Loader2 data-icon="inline-start" className="animate-spin" /> : <Lock data-icon="inline-start" />}
-            {processing ? 'Processing payment…' : `Pay Now · ${formatRupiah(totals.total)}`}
+            {processing ? 'Opening Duitku…' : method ? `Pay ${formatRupiah(totals.total)}` : 'Choose a payment method'}
           </Button>
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <ExternalLink className="size-3.5" aria-hidden="true" />
+            {"You'll finish paying on Duitku's secure page."}
+          </p>
           {!processing && (
             <ButtonLink href="/checkout" variant={expired ? 'default' : 'ghost'}>
               {expired ? 'Reserve again at checkout' : 'Back to checkout'}

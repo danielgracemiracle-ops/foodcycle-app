@@ -210,9 +210,27 @@ export interface Payment {
   orderIds: string[]
   userId: string
   amount: number
-  method: PaymentMethod
+  /** Legacy seed rows use PaymentMethod; Duitku payments store the channel name, e.g. "BCA VA". */
+  method: PaymentMethod | string
   status: 'success' | 'failed'
+  /** Duitku merchantOrderId and gateway reference, for reconciliation. */
+  gatewayOrderId?: string
+  gatewayReference?: string
   createdAt: string
+}
+
+/** table: refunds — Duitku has no refund API, so an admin settles these from the Duitku dashboard. */
+export interface Refund {
+  id: string
+  orderId: string
+  paymentId: string
+  userId: string
+  amount: number
+  reason: string
+  status: 'pending' | 'completed'
+  createdAt: string
+  completedAt?: string
+  note?: string
 }
 
 export type DonationStatus =
@@ -364,6 +382,7 @@ export interface Db {
   foods: Food[]
   orders: Order[]
   payments: Payment[]
+  refunds: Refund[]
   donations: Donation[]
   reviews: Review[]
   notifications: Notification[]

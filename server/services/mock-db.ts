@@ -8,10 +8,14 @@ import type { Db } from '@/types'
  * this context, and writes it back only when a service called `commit`.
  */
 
+export type Sequence = 'order_number_seq' | 'donation_number_seq' | 'payment_number_seq'
+
 export interface DbContext {
   db: Db
   dirty: boolean
-  nextval?: (sequence: 'order_number_seq' | 'donation_number_seq') => Promise<number>
+  nextval?: (sequence: Sequence) => Promise<number>
+  /** Raw query on the same transaction as the document write, so both commit or roll back together. */
+  sql?: <R extends Record<string, unknown>>(text: string, params?: unknown[]) => Promise<R[]>
 }
 
 export const dbContext = new AsyncLocalStorage<DbContext>()
@@ -25,10 +29,16 @@ function context() {
 export const getDb = () => context().db
 
 /** Database-generated, gap-tolerant and collision-free numbers (Postgres sequences are never reused). */
-export async function nextNumber(sequence: 'order_number_seq' | 'donation_number_seq') {
+export async function nextNumber(sequence: Sequence) {
   const nextval = context().nextval
   if (!nextval) throw new Error('Sequence access requires a write context')
   return nextval(sequence)
+}
+
+export async function txQuery<R extends Record<string, unknown>>(text: string, params?: unknown[]) {
+  const sql = context().sql
+  if (!sql) throw new Error('SQL access requires a write context')
+  return sql<R>(text, params)
 }
 
 export function commit(mutator: (draft: Db) => void) {

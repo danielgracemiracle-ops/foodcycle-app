@@ -5,11 +5,16 @@ import type { Db } from '@/types'
 import { createSeed } from '@/data/seed'
 import { auth } from '@/lib/auth'
 import { pool } from '@/lib/db'
-import { dbContext } from './services/mock-db'
+import { dbContext, type DbContext, type Sequence } from './services/mock-db'
+
+function normalize(doc: Db): Db {
+  doc.refunds ??= []
+  return doc
+}
 
 async function loadDoc(client: PoolClient, lock: boolean): Promise<Db> {
   const res = await client.query<{ doc: Db }>(`SELECT doc FROM app_state WHERE id = 1${lock ? ' FOR UPDATE' : ''}`)
-  if (res.rowCount) return res.rows[0].doc
+  if (res.rowCount) return normalize(res.rows[0].doc)
   const seed = createSeed()
   seed.session = null
   await client.query(
@@ -17,7 +22,7 @@ async function loadDoc(client: PoolClient, lock: boolean): Promise<Db> {
     [JSON.stringify(seed)],
   )
   const again = await client.query<{ doc: Db }>(`SELECT doc FROM app_state WHERE id = 1${lock ? ' FOR UPDATE' : ''}`)
-  return again.rows[0].doc
+  return normalize(again.rows[0].doc)
 }
 
 async function attachSession(db: Db) {
@@ -41,13 +46,15 @@ export async function withAppDb<T>(fn: () => Promise<T>): Promise<T> {
     await client.query('BEGIN')
     const db = await loadDoc(client, true)
     await attachSession(db)
-    const ctx = {
+    const ctx: DbContext = {
       db,
       dirty: false,
-      nextval: async (sequence: 'order_number_seq' | 'donation_number_seq') => {
+      nextval: async (sequence: Sequence) => {
         const res = await client.query<{ n: string }>('SELECT nextval($1::regclass) AS n', [sequence])
         return Number(res.rows[0].n)
       },
+      sql: async <R extends Record<string, unknown>>(text: string, params?: unknown[]) =>
+        (await client.query<R>(text, params)).rows,
     }
     const result = await dbContext.run(ctx, fn)
     if (ctx.dirty)

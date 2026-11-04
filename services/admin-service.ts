@@ -7,4 +7,5 @@ export const setRestaurantVerification = invoke<typeof S.setRestaurantVerificati
 export const setInstitutionVerification = invoke<typeof S.setInstitutionVerification>('admin', 'setInstitutionVerification')
 export const setFoodDisabled = invoke<typeof S.setFoodDisabled>('admin', 'setFoodDisabled')
 export const respondToComplaint = invoke<typeof S.respondToComplaint>('admin', 'respondToComplaint')
+export const completeRefund = invoke<typeof S.completeRefund>('admin', 'completeRefund')
 export const updateSystemSettings = invoke<typeof S.updateSystemSettings>('admin', 'updateSystemSettings')

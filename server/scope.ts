@@ -50,6 +50,7 @@ export function scopeForViewer(db: Db): Db {
         (o.donationId !== undefined && visibleDonationIds.has(o.donationId)),
     ),
     payments: own(db.payments),
+    refunds: own(db.refunds ?? []),
     donations,
     notifications: own(db.notifications),
     favorites: own(db.favorites),
