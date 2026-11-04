@@ -75,7 +75,7 @@ export async function completeRefund(refundId: string, note: string) {
     r.status = 'completed'
     r.completedAt = new Date().toISOString()
     r.note = trimmed
-    notify(d, r.userId, 'order', 'Refund sent', `Your refund for ${r.orderId} has been sent. Reference: ${trimmed}`, '/orders')
+    notify(d, r.userId, 'order', 'Refund sent', `Your refund for ${r.orderId} has been sent. Reference: ${trimmed}`, '/refunds')
   })
 }
 

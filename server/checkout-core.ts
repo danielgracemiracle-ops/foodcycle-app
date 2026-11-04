@@ -62,7 +62,7 @@ async function markUnfulfilled(row: PaymentRow, reason: string) {
       createdAt: now,
     })
     d.refunds.unshift({ id: uid('rf'), paymentId, userId: row.user_id, orderId: row.merchant_order_id, amount: row.amount, reason, status: 'pending', createdAt: now })
-    notify(d, row.user_id, 'order', 'Payment received, order not placed', `${reason} A full refund of ${formatRupiah(row.amount)} will be sent back to you.`, '/orders')
+    notify(d, row.user_id, 'order', 'Payment received, order not placed', `${reason} A full refund of ${formatRupiah(row.amount)} will be sent back to you.`, '/refunds')
     notifyAdmins(d, 'system', 'Refund needed', `${row.merchant_order_id}: ${formatRupiah(row.amount)} paid but not fulfilled. ${reason}`, '/admin/refunds')
   })
 }
