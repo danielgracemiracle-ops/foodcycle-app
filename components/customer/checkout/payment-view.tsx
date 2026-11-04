@@ -1,6 +1,6 @@
 'use client'
 
-import { CreditCard, ExternalLink, HandHeart, Loader2, Lock, RefreshCw } from 'lucide-react'
+import { CreditCard, ExternalLink, FlaskConical, HandHeart, Loader2, Lock, RefreshCw } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useCallback, useState } from 'react'
 import useSWR from 'swr'
@@ -9,7 +9,7 @@ import { useCurrentUser, useDb, useHydrated } from '@/hooks/use-db'
 import { cartLines, cartTotals } from '@/lib/selectors'
 import { formatRupiah } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { listPaymentChannels, startPayment } from '@/services/order-service'
+import { isSandboxPayment, listPaymentChannels, simulateSandboxPayment, startPayment } from '@/services/order-service'
 import { ButtonLink } from '@/components/shared/button-link'
 import { EmptyState, PageHeader, Panel } from '@/components/shared/page'
 import { Button } from '@/components/ui/button'
@@ -35,6 +35,7 @@ export function PaymentView() {
   const channels = useSWR(ready ? ['payment-channels', totals.total] : null, () => listPaymentChannels(), {
     revalidateOnFocus: false,
   })
+  const sandbox = useSWR('sandbox-payment', () => isSandboxPayment(), { revalidateOnFocus: false })
 
   if (!hydrated || !user) return <div className="h-80 animate-pulse rounded-3xl bg-muted" />
 
@@ -69,6 +70,23 @@ export function PaymentView() {
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Could not start the payment'
+      setError(msg)
+      toast.error(msg)
+      setProcessing(false)
+    }
+  }
+
+  const payInSandbox = async () => {
+    if (processing || expired || !method) return
+    setError(undefined)
+    setProcessing(true)
+    try {
+      const { merchantOrderId } = await startPayment(method)
+      const result = await simulateSandboxPayment(merchantOrderId)
+      if (result.status === 'paid') router.push(`/payment/success?orders=${result.orderIds.join(',')}`)
+      else router.push(`/payment/return?merchantOrderId=${encodeURIComponent(merchantOrderId)}`)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Could not simulate the payment'
       setError(msg)
       toast.error(msg)
       setProcessing(false)
@@ -167,6 +185,17 @@ export function PaymentView() {
             <ExternalLink className="size-3.5" aria-hidden="true" />
             {"You'll finish paying on Duitku's secure page."}
           </p>
+          {sandbox.data && (
+            <div className="flex flex-col gap-2 rounded-2xl border border-dashed border-primary/40 bg-accent/40 p-3">
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                <span className="font-semibold text-foreground">Sandbox mode.</span> Skip Duitku and mark this order as paid for testing.
+              </p>
+              <Button variant="outline" onClick={payInSandbox} disabled={processing || expired || !method}>
+                <FlaskConical data-icon="inline-start" />
+                {method ? 'Sudah bayar (simulasi)' : 'Pilih metode dulu'}
+              </Button>
+            </div>
+          )}
           {!processing && (
             <ButtonLink href="/checkout" variant={expired ? 'default' : 'ghost'}>
               {expired ? 'Reserve again at checkout' : 'Back to checkout'}
