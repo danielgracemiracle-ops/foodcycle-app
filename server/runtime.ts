@@ -7,8 +7,27 @@ import { auth } from '@/lib/auth'
 import { pool } from '@/lib/db'
 import { dbContext, type DbContext, type Sequence } from './services/mock-db'
 
+const DAY_MS = 864e5
+const demoFoodIds = new Set(createSeed().foods.map((f) => f.id))
+
+/**
+ * Demo listings are stored once with fixed timestamps, so their pickup windows would expire and empty the
+ * marketplace. Shift them forward by whole days (keeping the time of day) until the window is open again.
+ */
+function refreshDemoFoods(doc: Db, now = Date.now()) {
+  for (const food of doc.foods) {
+    if (!demoFoodIds.has(food.id)) continue
+    const end = new Date(food.pickupEnd).getTime()
+    if (end > now) continue
+    const shift = Math.ceil((now - end) / DAY_MS) * DAY_MS
+    food.pickupStart = new Date(new Date(food.pickupStart).getTime() + shift).toISOString()
+    food.pickupEnd = new Date(end + shift).toISOString()
+  }
+}
+
 function normalize(doc: Db): Db {
   doc.refunds ??= []
+  refreshDemoFoods(doc)
   return doc
 }
 
