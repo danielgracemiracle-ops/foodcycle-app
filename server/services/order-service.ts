@@ -220,6 +220,26 @@ export async function confirmPayment(merchantOrderId: string): Promise<{ status:
   return fulfillPayment(merchantOrderId, check)
 }
 
+const isDuitkuSandbox = () => process.env.DUITKU_ENV !== 'production'
+
+export async function isSandboxPayment() {
+  return isDuitkuSandbox()
+}
+
+/**
+ * Sandbox-only shortcut: marks the customer's own pending payment as paid without visiting
+ * Duitku. Disabled when DUITKU_ENV=production, so it can never skip a real payment.
+ */
+export async function simulateSandboxPayment(merchantOrderId: string): Promise<{ status: 'paid' | 'pending' | 'failed' | 'unfulfilled'; orderIds: string[] }> {
+  if (!isDuitkuSandbox()) throw new ServiceError('Simulated payments are only available in sandbox mode.')
+  const user = requireUser('customer')
+  if (typeof merchantOrderId !== 'string' || !/^FC-\d+$/.test(merchantOrderId)) throw new ServiceError('Payment not found.')
+  const row = await lockPayment(merchantOrderId)
+  if (!row || row.user_id !== user.id) throw new ServiceError('Payment not found.')
+  if (row.status !== 'pending') return { status: row.status, orderIds: row.order_ids }
+  return fulfillPayment(merchantOrderId, { amount: Number(row.amount), reference: `SANDBOX-${merchantOrderId}` })
+}
+
 
 function returnOrderStock(order: Order | undefined) {
   if (!order) return Promise.resolve()
