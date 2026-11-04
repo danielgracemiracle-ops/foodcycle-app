@@ -46,6 +46,7 @@ const customerPrimary: NavItem[] = [
   { href: '/explore', label: 'Explore', icon: Compass },
   { href: '/favorites', label: 'Favorites', icon: Heart },
   { href: '/orders', label: 'Orders', icon: ShoppingBag },
+  { href: '/refunds', label: 'Refunds', icon: Undo2 },
   { href: '/donations', label: 'Donations', icon: HandHeart },
   { href: '/impact', label: 'Impact', icon: Leaf },
   { href: '/notifications', label: 'Notifications', icon: Bell, badge: 'notifications' },
