@@ -5,6 +5,7 @@ import { DEMO_ACCOUNTS } from '@/data/seed'
 import { auth } from '@/lib/auth'
 import { toInstitutionLegal, toRestaurantLegal, validateLegal } from '@/lib/registration'
 import type { RegisterInput } from '@/lib/roles'
+import { uploadedDocsProblem } from '@/server/legal-docs'
 import { commit, getDb } from './mock-db'
 import { notifyAdmins, requireUser, ServiceError, uid } from './utils'
 
@@ -50,6 +51,8 @@ export async function register(input: RegisterInput): Promise<User> {
     if (!input.legal) throw new ServiceError('Legal documents and a bank account are required.')
     const first = Object.values(validateLegal(partnerRole, input.legal))[0]
     if (first) throw new ServiceError(first)
+    const docProblem = uploadedDocsProblem(partnerRole, input.legal.documents ?? {})
+    if (docProblem) throw new ServiceError(docProblem)
   }
   if (getDb().users.some((u) => u.email.toLowerCase() === email))
     throw new ServiceError('An account with this email already exists.')

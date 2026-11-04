@@ -63,6 +63,22 @@ export async function respondToComplaint(complaintId: string, message: string, s
   })
 }
 
+/** Duitku has no refund API: the admin sends the money from the Duitku dashboard, then records it here. */
+export async function completeRefund(refundId: string, note: string) {
+  requireUser('admin')
+  const trimmed = typeof note === 'string' ? note.trim().slice(0, 200) : ''
+  if (trimmed.length < 3) throw new ServiceError('Add a short note, e.g. the transfer reference.')
+  commit((d) => {
+    const r = d.refunds.find((x) => x.id === refundId)
+    if (!r) throw new ServiceError('Refund not found.')
+    if (r.status === 'completed') throw new ServiceError('This refund is already marked as sent.')
+    r.status = 'completed'
+    r.completedAt = new Date().toISOString()
+    r.note = trimmed
+    notify(d, r.userId, 'order', 'Refund sent', `Your refund for ${r.orderId} has been sent. Reference: ${trimmed}`, '/orders')
+  })
+}
+
 export async function updateSystemSettings(patch: Partial<SystemSettings>) {
   await delay(400)
   requireUser('admin')

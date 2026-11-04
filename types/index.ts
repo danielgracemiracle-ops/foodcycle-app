@@ -54,12 +54,23 @@ export interface BankAccount {
 }
 
 /** table: restaurant_documents */
+/** A scanned legal file in private Blob storage. Served only via /api/legal-docs. */
+export interface LegalDocument {
+  kind: import('@/lib/legal-docs').DocKind
+  pathname: string
+  name: string
+  contentType: string
+  size: number
+  uploadedAt: string
+}
+
 export interface RestaurantLegal {
   ownerNik: string
   nib: string
   npwp: string
   foodPermit: string
   halalCertificate?: string
+  documents?: LegalDocument[]
   bank: BankAccount
   agreedRules: boolean
   submittedAt: string
@@ -74,6 +85,7 @@ export interface InstitutionLegal {
   picName: string
   picNik: string
   beneficiaries: number
+  documents?: LegalDocument[]
   bank: BankAccount
   agreedRules: boolean
   submittedAt: string
@@ -198,9 +210,27 @@ export interface Payment {
   orderIds: string[]
   userId: string
   amount: number
-  method: PaymentMethod
+  /** Legacy seed rows use PaymentMethod; Duitku payments store the channel name, e.g. "BCA VA". */
+  method: PaymentMethod | string
   status: 'success' | 'failed'
+  /** Duitku merchantOrderId and gateway reference, for reconciliation. */
+  gatewayOrderId?: string
+  gatewayReference?: string
   createdAt: string
+}
+
+/** table: refunds — Duitku has no refund API, so an admin settles these from the Duitku dashboard. */
+export interface Refund {
+  id: string
+  orderId: string
+  paymentId: string
+  userId: string
+  amount: number
+  reason: string
+  status: 'pending' | 'completed'
+  createdAt: string
+  completedAt?: string
+  note?: string
 }
 
 export type DonationStatus =
@@ -352,6 +382,7 @@ export interface Db {
   foods: Food[]
   orders: Order[]
   payments: Payment[]
+  refunds: Refund[]
   donations: Donation[]
   reviews: Review[]
   notifications: Notification[]

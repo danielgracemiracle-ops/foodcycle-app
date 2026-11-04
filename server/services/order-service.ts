@@ -1,10 +1,12 @@
-import type { CheckoutDraft, Db, Donation, DonationStatus, Order, OrderItem, OrderStatus, PaymentMethod } from '@/types'
-import { calculateGrade } from '@/lib/quality'
+import { headers } from 'next/headers'
+import type { CheckoutDraft, Db, Donation, DonationStatus, Order, OrderStatus } from '@/types'
 import { isPurchasable } from '@/lib/recommendation'
 import { formatRupiah } from '@/lib/format'
 import { DONATION_FLOW, MAX_QTY_PER_ITEM, ORDER_FLOW } from '@/lib/order-flow'
-import { commit, getDb } from './mock-db'
-import { confirmCheckout, holdCheckout, refreshStock, releaseCheckout, returnStock } from './stock-api'
+import { cartTotal, fulfillPayment, lockPayment, markPaymentFailed, queueRefund, validateCart } from '../checkout-core'
+import { checkTransaction, createInquiry, DuitkuError, getPaymentChannels, type PaymentChannel } from '../duitku'
+import { commit, getDb, nextNumber, txQuery } from './mock-db'
+import { holdCheckout, refreshStock, releaseCheckout, returnStock } from './stock-api'
 import { delay, notify, requireUser, ServiceError, uid } from './utils'
 
 /** Any cart change invalidates the reserved stock, so the customer must check out again. */
@@ -72,19 +74,6 @@ export async function removeFromCart(foodId: string) {
 
 /* --------------------------- checkout --------------------------- */
 
-/** Once stock is held on the server the local quantity already excludes this cart, so skip that check. */
-function validateCart(db: Db, userId: string, stockHeld = false) {
-  const cart = db.carts[userId] ?? []
-  if (cart.length === 0) throw new ServiceError('Your cart is empty. Add at least one item to check out.')
-  for (const item of cart) {
-    const food = db.foods.find((f) => f.id === item.foodId)
-    if (!food || !(stockHeld ? food.status === 'active' && new Date(food.pickupEnd).getTime() > Date.now() : isPurchasable(food)))
-      throw new ServiceError(`${food?.name ?? 'An item'} is no longer available. Please remove it.`)
-    if (!stockHeld && item.quantity > food.quantity) throw new ServiceError(`Only ${food.quantity} portion(s) of ${food.name} left.`)
-  }
-  return cart
-}
-
 export async function saveCheckoutDraft(draft: CheckoutDraft) {
   await delay(400)
   const user = requireUser('customer')
@@ -122,127 +111,115 @@ export async function saveCheckoutDraft(draft: CheckoutDraft) {
   })
 }
 
-export async function processPayment(method: PaymentMethod, simulateFailure = false): Promise<string[]> {
-  await delay(1600)
-  const user = requireUser('customer')
+/* --------------------------- payment (Duitku) --------------------------- */
+
+function activeCheckout(userId: string) {
   const db = getDb()
-  const draft = db.checkoutDrafts[user.id]
+  const draft = db.checkoutDrafts[userId]
   if (!draft?.holdKey || !draft.holdExpiresAt) throw new ServiceError('Your checkout session expired. Please review your cart again.')
-  if (new Date(draft.holdExpiresAt).getTime() <= Date.now())
-    throw new ServiceError('Your 10-minute stock hold has expired. Please go back to checkout to reserve the food again.')
-  const holdKey = draft.holdKey
-  const cart = validateCart(db, user.id, true)
-  const total = cart.reduce((s, c) => s + (db.foods.find((f) => f.id === c.foodId)?.price ?? 0) * c.quantity, 0)
-
-  if (simulateFailure) {
-    commit((d) => {
-      d.payments.unshift({ id: uid('pay'), orderIds: [], userId: user.id, amount: total, method, status: 'failed', createdAt: new Date().toISOString() })
-    })
-    throw new ServiceError('Payment was declined by the provider. No money was taken — please try again.')
-  }
-
-  const byRestaurant = new Map<string, typeof cart>()
-  for (const c of cart) {
-    const restaurantId = db.foods.find((f) => f.id === c.foodId)!.restaurantId
-    byRestaurant.set(restaurantId, [...(byRestaurant.get(restaurantId) ?? []), c])
-  }
-  const plannedIds = [...byRestaurant.keys()].map(() => `ORD-${Math.floor(1100 + Math.random() * 8900)}`)
-
-  // The server is the single source of truth: a double click or retry with the same key never creates a second order.
-  const confirmation = await confirmCheckout(holdKey, user.id, plannedIds)
-  if (confirmation.alreadyPaid) {
-    commit((d) => {
-      d.carts[user.id] = []
-      d.checkoutDrafts[user.id] = undefined
-    })
-    return confirmation.orderIds
-  }
-
-  const orderIds: string[] = []
-  commit((d) => {
-    const now = new Date().toISOString()
-    const paymentId = uid('pay')
-
-    for (const [index, [restaurantId, lines]] of [...byRestaurant].entries()) {
-      const orderId = plannedIds[index]
-      const items: OrderItem[] = lines.map((c) => {
-        const food = d.foods.find((f) => f.id === c.foodId)!
-        food.soldCount += c.quantity
-        return {
-          id: uid('oi'),
-          foodId: food.id,
-          name: food.name,
-          image: food.image,
-          price: food.price,
-          originalPrice: food.originalPrice,
-          quantity: c.quantity,
-          grade: calculateGrade(food),
-          category: food.category,
-          weightKg: food.weightKg,
-        }
-      })
-      const subtotal = items.reduce((s, i) => s + i.originalPrice * i.quantity, 0)
-      const orderTotal = items.reduce((s, i) => s + i.price * i.quantity, 0)
-      const foods = lines.map((c) => d.foods.find((f) => f.id === c.foodId)!)
-      const order: Order = {
-        id: orderId,
-        customerId: user.id,
-        restaurantId,
-        items,
-        type: draft.type,
-        status: 'Payment Confirmed',
-        history: [
-          { status: 'Pending', at: now },
-          { status: 'Payment Confirmed', at: now },
-        ],
-        subtotal,
-        discount: subtotal - orderTotal,
-        total: orderTotal,
-        pickupStart: foods.reduce((a, f) => (f.pickupStart > a ? f.pickupStart : a), foods[0].pickupStart),
-        pickupEnd: foods.reduce((a, f) => (f.pickupEnd < a ? f.pickupEnd : a), foods[0].pickupEnd),
-        paymentId,
-        reviewed: false,
-        createdAt: now,
-      }
-
-      const restaurant = d.restaurants.find((r) => r.id === restaurantId)
-      if (draft.type === 'donation' && draft.institutionId) {
-        const donation: Donation = {
-          id: `DON-${Math.floor(400 + Math.random() * 9000)}`,
-          orderId,
-          donorId: user.id,
-          restaurantId,
-          institutionId: draft.institutionId,
-          foodSummary: items.map((i) => i.name).join(', '),
-          quantity: items.reduce((s, i) => s + i.quantity, 0),
-          value: orderTotal,
-          message: draft.message?.trim() || undefined,
-          status: 'Purchased',
-          history: [{ status: 'Purchased', at: now }],
-          createdAt: now,
-        }
-        order.donationId = donation.id
-        d.donations.unshift(donation)
-        const inst = d.institutions.find((i) => i.id === draft.institutionId)
-        notify(d, inst?.ownerId, 'donation', 'New donation available', `${donation.quantity}x ${donation.foodSummary} from ${restaurant?.name}. Please accept or decline.`, '/institution/donations')
-      }
-
-      d.orders.unshift(order)
-      orderIds.push(orderId)
-      notify(d, restaurant?.ownerId, 'order', 'New order received', `${orderId} — ${items.map((i) => `${i.quantity}x ${i.name}`).join(', ')}.`, '/restaurant/orders')
-      for (const food of foods)
-        if (food.quantity > 0 && food.quantity <= 2)
-          notify(d, restaurant?.ownerId, 'stock', 'Stock running low', `${food.name} has only ${food.quantity} portion(s) left.`, '/restaurant/listings')
-    }
-
-    d.payments.unshift({ id: paymentId, orderIds, userId: user.id, amount: total, method, status: 'success', createdAt: now })
-    d.carts[user.id] = []
-    d.checkoutDrafts[user.id] = undefined
-    notify(d, user.id, 'order', 'Payment successful', `${formatRupiah(total)} paid via ${method}. ${orderIds.length > 1 ? `${orderIds.length} orders` : orderIds[0]} confirmed.`, `/orders/${orderIds[0]}`)
-  })
-  void refreshStock()
-  return orderIds
+  const minutesLeft = Math.floor((new Date(draft.holdExpiresAt).getTime() - Date.now()) / 60_000)
+  if (minutesLeft < 1) throw new ServiceError('Your 10-minute stock hold has expired. Please go back to checkout to reserve the food again.')
+  const cart = validateCart(db, userId, true)
+  return { db, draft, cart, total: cartTotal(db, userId), minutesLeft }
 }
+
+export async function listPaymentChannels(): Promise<PaymentChannel[]> {
+  const user = requireUser('customer')
+  const { total } = activeCheckout(user.id)
+  try {
+    return await getPaymentChannels(total)
+  } catch (e) {
+    throw new ServiceError(e instanceof DuitkuError ? e.message : 'Could not load payment methods. Please try again.')
+  }
+}
+
+async function appOrigin() {
+  const h = await headers()
+  const host = h.get('x-forwarded-host') ?? h.get('host')
+  if (!host) throw new ServiceError('Could not determine the app address.')
+  const proto = h.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https')
+  return `${proto}://${host}`
+}
+
+/** Creates a Duitku invoice for the held cart and returns the hosted payment page URL. */
+export async function startPayment(paymentCode: string): Promise<{ paymentUrl: string; merchantOrderId: string }> {
+  const user = requireUser('customer')
+  if (typeof paymentCode !== 'string' || !/^[A-Z0-9]{2,4}$/.test(paymentCode)) throw new ServiceError('Please choose a payment method.')
+  const { db, draft, cart, total, minutesLeft } = activeCheckout(user.id)
+
+  // A double click or retry with the same method reuses the open invoice instead of creating a second one.
+  const [open] = await txQuery<{ merchant_order_id: string; payment_url: string }>(
+    "SELECT merchant_order_id, payment_url FROM duitku_payments WHERE hold_key = $1 AND user_id = $2 AND payment_code = $3 AND status = 'pending' AND expires_at > now() AND amount = $4 ORDER BY created_at DESC LIMIT 1",
+    [draft.holdKey, user.id, paymentCode, total],
+  )
+  if (open?.payment_url) return { paymentUrl: open.payment_url, merchantOrderId: open.merchant_order_id }
+
+  let channels: PaymentChannel[]
+  try {
+    channels = await getPaymentChannels(total)
+  } catch (e) {
+    throw new ServiceError(e instanceof DuitkuError ? e.message : 'Could not load payment methods.')
+  }
+  const channel = channels.find((c) => c.code === paymentCode)
+  if (!channel) throw new ServiceError('That payment method is not available for this amount.')
+
+  const merchantOrderId = `FC-${await nextNumber('payment_number_seq')}`
+  const origin = await appOrigin()
+  const items = cart.map((c) => {
+    const food = db.foods.find((f) => f.id === c.foodId)!
+    return { name: food.name.slice(0, 50), price: food.price * c.quantity, quantity: c.quantity }
+  })
+
+  let invoice: { reference: string | null; paymentUrl: string }
+  try {
+    invoice = await createInquiry({
+      merchantOrderId,
+      amount: total,
+      paymentCode,
+      productDetails: `FoodCycle ${draft.type === 'donation' ? 'donation' : 'order'}: ${items.map((i) => i.name).join(', ')}`,
+      email: user.email,
+      customerName: user.name,
+      items,
+      callbackUrl: `${origin}/api/payments/duitku/callback`,
+      returnUrl: `${origin}/payment/return`,
+      expiryMinutes: minutesLeft,
+    })
+  } catch (e) {
+    throw new ServiceError(e instanceof DuitkuError ? e.message : 'Could not start the payment.')
+  }
+
+  await txQuery(
+    "INSERT INTO duitku_payments (merchant_order_id, user_id, hold_key, amount, payment_code, method_label, reference, payment_url, expires_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8, now() + make_interval(mins => $9))",
+    [merchantOrderId, user.id, draft.holdKey, total, paymentCode, channel.name, invoice.reference, invoice.paymentUrl, minutesLeft],
+  )
+  return { paymentUrl: invoice.paymentUrl, merchantOrderId }
+}
+
+/**
+ * Called from the return page. Never trusts the redirect's query string: it asks Duitku
+ * directly and only then creates the orders.
+ */
+export async function confirmPayment(merchantOrderId: string): Promise<{ status: 'paid' | 'pending' | 'failed' | 'unfulfilled'; orderIds: string[] }> {
+  const user = requireUser('customer')
+  if (typeof merchantOrderId !== 'string' || !/^FC-\d+$/.test(merchantOrderId)) throw new ServiceError('Payment not found.')
+  const row = await lockPayment(merchantOrderId)
+  if (!row || row.user_id !== user.id) throw new ServiceError('Payment not found.')
+  if (row.status !== 'pending') return { status: row.status, orderIds: row.order_ids }
+
+  let check
+  try {
+    check = await checkTransaction(merchantOrderId)
+  } catch (e) {
+    throw new ServiceError(e instanceof DuitkuError ? e.message : 'Could not check the payment status.')
+  }
+  if (check.status === 'pending') return { status: 'pending', orderIds: [] }
+  if (check.status === 'failed') {
+    await markPaymentFailed(merchantOrderId)
+    return { status: 'failed', orderIds: [] }
+  }
+  return fulfillPayment(merchantOrderId, check)
+}
+
 
 function returnOrderStock(order: Order | undefined) {
   if (!order) return Promise.resolve()
@@ -362,6 +339,7 @@ export async function rejectOrder(orderId: string, reason = 'Restaurant unable t
     restoreStock(d, order)
     const donation = d.donations.find((x) => x.id === order.donationId)
     if (donation) pushDonationStatus(donation, 'Rejected')
+    queueRefund(d, order, `Rejected by restaurant: ${reason}`)
     notify(d, order.customerId, 'order', 'Order cancelled', `${order.id} was cancelled: ${reason}. A full refund of ${formatRupiah(order.total)} is on its way.`, `/orders/${order.id}`)
   })
   await returnOrderStock(getDb().orders.find((o) => o.id === orderId))
@@ -378,6 +356,7 @@ export async function cancelOrder(orderId: string) {
     restoreStock(d, order)
     const donation = d.donations.find((x) => x.id === order.donationId)
     if (donation) pushDonationStatus(donation, 'Rejected')
+    queueRefund(d, order, 'Cancelled by customer')
     const restaurant = d.restaurants.find((r) => r.id === order.restaurantId)
     notify(d, restaurant?.ownerId, 'order', 'Order cancelled by customer', `${order.id} was cancelled.`, '/restaurant/orders')
     notify(d, user.id, 'order', 'Order cancelled', `Refund of ${formatRupiah(order.total)} will be returned to your payment method.`, `/orders/${order.id}`)
@@ -453,6 +432,7 @@ export async function rejectDonation(donationId: string) {
     if (order) {
       pushOrderStatus(order, 'Cancelled')
       restoreStock(d, order)
+      queueRefund(d, order, 'Donation declined by the institution')
     }
     notify(d, donation.donorId, 'donation', 'Donation declined', `The institution could not accept this donation. A full refund of ${formatRupiah(donation.value)} is on its way.`, '/donations')
   })

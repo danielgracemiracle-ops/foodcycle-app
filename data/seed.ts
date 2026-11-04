@@ -284,6 +284,7 @@ export function createSeed(nowMs = Date.now()): Db {
     foods,
     orders,
     payments: [],
+    refunds: [],
     donations,
     reviews,
     notifications,
