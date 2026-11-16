@@ -8,7 +8,8 @@ import { checkTransaction, createInquiry, DuitkuError, getPaymentChannels, type 
 import { commit, getDb, nextNumber, txQuery } from './mock-db'
 import { holdCheckout, refreshStock, releaseCheckout, returnStock } from './stock-api'
 import { delay, notify, notifyAdmins, requireUser, ServiceError, uid } from './utils'
-import { REFUND_REASON_MAX, REFUND_REASON_MIN, REFUND_WINDOW_HOURS, refundDeadline } from '@/lib/refund'
+import { REFUND_REASON_MAX, REFUND_REASON_MIN, REFUND_WINDOW_HOURS, refundDeadline, type UploadedRefundPhoto } from '@/lib/refund'
+import { verifyRefundPhotos } from '../refund-photos'
 
 /** Any cart change invalidates the reserved stock, so the customer must check out again. */
 function dropCheckoutHold(userId: string) {
@@ -386,10 +387,12 @@ export async function cancelOrder(orderId: string) {
 }
 
 /** Customer asks for money back on a received order (e.g. spoiled food); an admin reviews it. */
-export async function requestRefund(orderId: string, reason: string) {
+export async function requestRefund(orderId: string, reason: string, photos: UploadedRefundPhoto[]) {
   const user = requireUser('customer')
   const text = typeof reason === 'string' ? reason.trim().slice(0, REFUND_REASON_MAX) : ''
   if (text.length < REFUND_REASON_MIN) throw new ServiceError(`Please describe the problem (at least ${REFUND_REASON_MIN} characters).`)
+  const evidence = verifyRefundPhotos(user.id, photos)
+  if ('error' in evidence) throw new ServiceError(evidence.error)
   commit((d) => {
     const order = d.orders.find((o) => o.id === orderId)
     if (!order || order.customerId !== user.id) throw new ServiceError('Order not found.')
@@ -408,6 +411,7 @@ export async function requestRefund(orderId: string, reason: string) {
       reason: `Customer request: ${text}`,
       status: 'requested',
       createdAt: new Date().toISOString(),
+      photos: evidence.photos,
     })
     notifyAdmins(d, 'system', 'Refund request', `${order.id}: ${formatRupiah(order.total)} — ${text}`, '/admin/refunds')
     const restaurant = d.restaurants.find((r) => r.id === order.restaurantId)
