@@ -1,6 +1,9 @@
 'use client'
 
-import { ArrowLeft, CircleCheck, FastForward, HandHeart, MapPin, Receipt, XCircle } from 'lucide-react'
+import { ArrowLeft, CircleCheck, FastForward, HandHeart, MapPin, Receipt, Undo2, XCircle } from 'lucide-react'
+import type { Refund } from '@/types'
+import { refundDeadline } from '@/lib/refund'
+import { RefundDialog } from './refund-dialog'
 import { useCurrentUser, useAction, useDb, useHydrated } from '@/hooks/use-db'
 import { formatDateTime, formatRupiah, pickupLabel } from '@/lib/format'
 import { cancelOrder, confirmPickup, DONATION_FLOW, ORDER_FLOW, simulateOrderProgress } from '@/services/order-service'
@@ -11,6 +14,13 @@ import { StatusBadge } from '@/components/shared/status-badge'
 import { StatusTimeline } from '@/components/shared/status-timeline'
 import { Button } from '@/components/ui/button'
 import { ReviewDialog } from './review-dialog'
+
+const REFUND_LABEL: Record<Refund['status'], string> = {
+  requested: 'Refund under review',
+  pending: 'Refund approved',
+  completed: 'Refund sent',
+  rejected: 'Refund declined',
+}
 
 export function OrderDetailView({ id }: { id: string }) {
   const db = useDb()
@@ -41,6 +51,9 @@ export function OrderDetailView({ id }: { id: string }) {
   const finished = order.status === 'Completed' || order.status === 'Cancelled'
   const donationFinished = !donation || donation.status === 'Received' || donation.status === 'Rejected'
   const canSimulate = !(finished && donationFinished) && order.status !== 'Cancelled'
+  const refund = (db.refunds ?? []).find((r) => r.orderId === order.id)
+  const refundBy = refundDeadline(order)
+  const canRequestRefund = payment?.status === 'success' && !!refundBy && Date.now() <= refundBy.getTime()
 
   return (
     <div className="flex flex-col gap-6">
@@ -79,6 +92,14 @@ export function OrderDetailView({ id }: { id: string }) {
               <CircleCheck data-icon="inline-start" />
               Confirm pickup
             </Button>
+          )}
+          {refund ? (
+            <ButtonLink href="/refunds" variant="outline">
+              <Undo2 data-icon="inline-start" />
+              {REFUND_LABEL[refund.status]}
+            </ButtonLink>
+          ) : (
+            canRequestRefund && refundBy && <RefundDialog order={order} deadline={refundBy} />
           )}
           {order.status === 'Completed' && !order.reviewed && <ReviewDialog order={order} />}
         </div>

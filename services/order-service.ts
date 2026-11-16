@@ -16,6 +16,7 @@ export const simulateSandboxPayment = invoke<typeof S.simulateSandboxPayment>('o
 export const advanceOrder = invoke<typeof S.advanceOrder>('order', 'advanceOrder')
 export const rejectOrder = invoke<typeof S.rejectOrder>('order', 'rejectOrder')
 export const cancelOrder = invoke<typeof S.cancelOrder>('order', 'cancelOrder')
+export const requestRefund = invoke<typeof S.requestRefund>('order', 'requestRefund')
 export const confirmPickup = invoke<typeof S.confirmPickup>('order', 'confirmPickup')
 export const simulateOrderProgress = invoke<typeof S.simulateOrderProgress>('order', 'simulateOrderProgress')
 export const acceptDonation = invoke<typeof S.acceptDonation>('order', 'acceptDonation')

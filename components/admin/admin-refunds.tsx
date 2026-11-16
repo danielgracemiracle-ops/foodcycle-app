@@ -6,7 +6,15 @@ import { toast } from 'sonner'
 import type { Refund } from '@/types'
 import { useDb, useHydrated } from '@/hooks/use-db'
 import { formatDate, formatRupiah } from '@/lib/format'
-import { completeRefund } from '@/services/admin-service'
+import { completeRefund, reviewRefund } from '@/services/admin-service'
+
+const STATUS: Record<Refund['status'], { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive' }> = {
+  requested: { label: 'Needs review', variant: 'outline' },
+  pending: { label: 'To send', variant: 'default' },
+  completed: { label: 'Sent', variant: 'secondary' },
+  rejected: { label: 'Declined', variant: 'destructive' },
+}
+const ORDER: Record<Refund['status'], number> = { requested: 0, pending: 1, completed: 2, rejected: 3 }
 import { PageHeader } from '@/components/shared/page'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -17,8 +25,41 @@ function RefundAction({ refund }: { refund: Refund }) {
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
 
-  if (refund.status === 'completed') {
+  if (refund.status === 'completed' || refund.status === 'rejected') {
     return <span className="text-xs text-muted-foreground">{refund.note}</span>
+  }
+
+  if (refund.status === 'requested') {
+    const review = async (approve: boolean) => {
+      if (busy) return
+      setBusy(true)
+      try {
+        await reviewRefund(refund.id, approve, note)
+        toast.success(approve ? 'Refund approved' : 'Refund declined')
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Could not update refund')
+        setBusy(false)
+      }
+    }
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="Reason if declining"
+          aria-label={`Decline reason for ${refund.orderId}`}
+          className="h-8 w-40"
+          maxLength={200}
+        />
+        <Button size="sm" onClick={() => review(true)} disabled={busy}>
+          {busy && <Loader2 data-icon="inline-start" className="animate-spin" />}
+          Approve
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => review(false)} disabled={busy || note.trim().length < 3}>
+          Decline
+        </Button>
+      </div>
+    )
   }
 
   const submit = async (e: React.FormEvent) => {
@@ -57,10 +98,11 @@ export function AdminRefundsView() {
   const hydrated = useHydrated()
   const refunds = db.refunds ?? []
   const rows = useMemo(
-    () => [...refunds].sort((a, b) => (a.status === b.status ? b.createdAt.localeCompare(a.createdAt) : a.status === 'pending' ? -1 : 1)),
+    () => [...refunds].sort((a, b) => ORDER[a.status] - ORDER[b.status] || b.createdAt.localeCompare(a.createdAt)),
     [refunds],
   )
   const pending = rows.filter((r) => r.status === 'pending')
+  const toReview = rows.filter((r) => r.status === 'requested').length
 
   if (!hydrated) return <div className="h-80 animate-pulse rounded-3xl bg-muted" />
 
@@ -68,7 +110,7 @@ export function AdminRefundsView() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Refunds"
-        description={`${pending.length} waiting · ${formatRupiah(pending.reduce((s, r) => s + r.amount, 0))} to send. Duitku has no refund API: send each refund from the Duitku dashboard, then record the reference here.`}
+        description={`${toReview} to review · ${pending.length} waiting · ${formatRupiah(pending.reduce((s, r) => s + r.amount, 0))} to send. Duitku has no refund API: send each refund from the Duitku dashboard, then record the reference here.`}
       />
       {rows.length === 0 ? (
         <p className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">No refunds yet.</p>
@@ -101,7 +143,7 @@ export function AdminRefundsView() {
                     <TableCell className="max-w-56 text-sm text-pretty">{r.reason}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatRupiah(r.amount)}</TableCell>
                     <TableCell>
-                      <Badge variant={r.status === 'pending' ? 'default' : 'secondary'}>{r.status === 'pending' ? 'To send' : 'Sent'}</Badge>
+                      <Badge variant={STATUS[r.status].variant}>{STATUS[r.status].label}</Badge>
                     </TableCell>
                     <TableCell>
                       <RefundAction refund={r} />

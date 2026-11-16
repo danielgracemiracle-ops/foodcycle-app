@@ -7,6 +7,14 @@ import { useCurrentUser, useDb, useHydrated } from '@/hooks/use-db'
 import { formatDate, formatRupiah } from '@/lib/format'
 import { EmptyState, PageHeader, StatCard } from '@/components/shared/page'
 import { Badge } from '@/components/ui/badge'
+import type { Refund } from '@/types'
+
+const STATUS_LABEL: Record<Refund['status'], string> = {
+  requested: 'Under review',
+  pending: 'Processing',
+  completed: 'Sent',
+  rejected: 'Declined',
+}
 
 export function RefundsView() {
   const db = useDb()
@@ -23,21 +31,21 @@ export function RefundsView() {
 
   if (!hydrated) return <div className="h-80 animate-pulse rounded-3xl bg-muted" />
 
-  const pending = refunds.filter((r) => r.status === 'pending')
+  const pending = refunds.filter((r) => r.status === 'pending' || r.status === 'requested')
   const sent = refunds.filter((r) => r.status === 'completed')
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Refunds"
-        description="Money returned for cancelled or rejected orders. Our team sends each refund back to your payment method, usually within 1–3 business days."
+        description="Money returned for cancelled orders, rejected orders, and approved refund requests. Our team sends each refund back to your payment method, usually within 1–3 business days."
       />
 
       {refunds.length === 0 ? (
         <EmptyState
           icon={Undo2}
           title="No refunds"
-          description="If an order is cancelled or a restaurant rejects it, the refund will appear here."
+          description="Cancelled orders and refund requests appear here. To request one, open a received order and tap Request refund."
         />
       ) : (
         <>
@@ -61,13 +69,14 @@ export function RefundsView() {
                       ) : (
                         <span className="font-mono text-sm font-medium">{r.orderId}</span>
                       )}
-                      <Badge variant={done ? 'secondary' : 'default'}>{done ? 'Sent' : 'Processing'}</Badge>
+                      <Badge variant={r.status === 'rejected' ? 'destructive' : done ? 'secondary' : 'default'}>{STATUS_LABEL[r.status]}</Badge>
                     </div>
                     <p className="text-sm leading-relaxed text-pretty text-muted-foreground">{r.reason}</p>
                     <p className="text-xs text-muted-foreground">
                       Requested {formatDate(r.createdAt)}
                       {done && r.completedAt ? ` · Sent ${formatDate(r.completedAt)}` : ''}
                       {done && r.note ? ` · Ref ${r.note}` : ''}
+                      {r.status === 'rejected' && r.note ? ` · Reason: ${r.note}` : ''}
                     </p>
                   </div>
                   <p className="font-heading text-xl font-bold tabular-nums">{formatRupiah(r.amount)}</p>
