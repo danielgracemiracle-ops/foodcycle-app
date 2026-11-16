@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import type { Refund } from '@/types'
 import { useDb, useHydrated } from '@/hooks/use-db'
 import { formatDate, formatRupiah } from '@/lib/format'
+import { refundPhotoUrl } from '@/lib/refund'
 import { completeRefund, reviewRefund } from '@/services/admin-service'
 
 const STATUS: Record<Refund['status'], { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive' }> = {
@@ -140,7 +141,26 @@ export function AdminRefundsView() {
                       <p>{customer?.name ?? '-'}</p>
                       <p className="text-xs text-muted-foreground">{customer?.email}</p>
                     </TableCell>
-                    <TableCell className="max-w-56 text-sm text-pretty">{r.reason}</TableCell>
+                    <TableCell className="max-w-56 text-sm text-pretty">
+                      <p>{r.reason}</p>
+                      {!!r.photos?.length && (
+                        <div className="mt-2 flex gap-1.5">
+                          {r.photos.map((p, i) => (
+                            <a
+                              key={p.pathname}
+                              href={refundPhotoUrl(p.pathname)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block size-12 overflow-hidden rounded-md border bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                              aria-label={`Open evidence photo ${i + 1} for ${r.orderId}`}
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element -- private, auth-checked route */}
+                              <img src={refundPhotoUrl(p.pathname)} alt="" className="size-full object-cover" loading="lazy" />
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </TableCell>
                     <TableCell className="text-right tabular-nums">{formatRupiah(r.amount)}</TableCell>
                     <TableCell>
                       <Badge variant={STATUS[r.status].variant}>{STATUS[r.status].label}</Badge>

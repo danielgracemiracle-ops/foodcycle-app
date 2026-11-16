@@ -1,8 +1,17 @@
-import type { Order } from '@/types'
+import type { Order, RefundPhoto } from '@/types'
 
 export const REFUND_WINDOW_HOURS = 48
 export const REFUND_REASON_MIN = 10
 export const REFUND_REASON_MAX = 500
+export const REFUND_PHOTO_MIN = 1
+export const REFUND_PHOTO_MAX = 3
+export const MAX_REFUND_PHOTO_BYTES = 4 * 1024 * 1024
+export const REFUND_PHOTO_ACCEPT = 'image/jpeg,image/png,image/webp'
+
+/** A photo returned by the upload route, with a server signature proving it was uploaded by this customer. */
+export type UploadedRefundPhoto = RefundPhoto & { token: string }
+
+export const refundPhotoUrl = (pathname: string) => `/api/refund-photos?pathname=${encodeURIComponent(pathname)}`
 
 /** When the customer received the order, or undefined if it isn't finished yet. */
 export function receivedAt(order: Order): string | undefined {

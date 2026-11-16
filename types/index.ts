@@ -232,6 +232,15 @@ export interface Refund {
   createdAt: string
   completedAt?: string
   note?: string
+  /** Customer's photo evidence, stored in private Blob storage. */
+  photos?: RefundPhoto[]
+}
+
+export interface RefundPhoto {
+  pathname: string
+  contentType: string
+  size: number
+  uploadedAt: string
 }
 
 export type DonationStatus =

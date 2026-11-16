@@ -5,7 +5,8 @@ import { useState } from 'react'
 import type { Order } from '@/types'
 import { useAction } from '@/hooks/use-db'
 import { formatDateTime, formatRupiah } from '@/lib/format'
-import { REFUND_REASON_MAX, REFUND_REASON_MIN } from '@/lib/refund'
+import { REFUND_PHOTO_MIN, REFUND_REASON_MAX, REFUND_REASON_MIN } from '@/lib/refund'
+import { RefundPhotoPicker, type PickedPhoto } from './refund-photo-picker'
 import { requestRefund } from '@/services/order-service'
 import { Button } from '@/components/ui/button'
 import {
@@ -22,11 +23,15 @@ import { Textarea } from '@/components/ui/textarea'
 export function RefundDialog({ order, deadline }: { order: Order; deadline: Date }) {
   const [open, setOpen] = useState(false)
   const [reason, setReason] = useState('')
+  const [photos, setPhotos] = useState<PickedPhoto[]>([])
+  const [uploading, setUploading] = useState(false)
   const [run, pending] = useAction(requestRefund, {
     success: 'Refund request sent. We will review it soon.',
     onSuccess: () => setOpen(false),
   })
   const tooShort = reason.trim().length < REFUND_REASON_MIN
+  const needsPhoto = photos.length < REFUND_PHOTO_MIN
+  const blocked = pending || uploading || tooShort || needsPhoto
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -50,7 +55,7 @@ export function RefundDialog({ order, deadline }: { order: Order; deadline: Date
           className="flex flex-col gap-2"
           onSubmit={(e) => {
             e.preventDefault()
-            if (!tooShort && !pending) run(order.id, reason)
+            if (!blocked) run(order.id, reason, photos.map((p) => p.photo))
           }}
         >
           <label htmlFor="refund-reason" className="text-sm font-medium">What went wrong?</label>
@@ -66,10 +71,11 @@ export function RefundDialog({ order, deadline }: { order: Order; deadline: Date
             <span>{tooShort ? `At least ${REFUND_REASON_MIN} characters` : ''}</span>
             <span className="tabular-nums">{reason.length}/{REFUND_REASON_MAX}</span>
           </p>
+          <RefundPhotoPicker value={photos} onChange={setPhotos} onUploadingChange={setUploading} />
         </form>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button type="submit" form="refund-form" disabled={pending || tooShort}>
+          <Button type="submit" form="refund-form" disabled={blocked}>
             {pending ? 'Sending…' : 'Send request'}
           </Button>
         </DialogFooter>
