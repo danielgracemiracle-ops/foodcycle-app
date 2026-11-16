@@ -72,10 +72,32 @@ export async function completeRefund(refundId: string, note: string) {
     const r = d.refunds.find((x) => x.id === refundId)
     if (!r) throw new ServiceError('Refund not found.')
     if (r.status === 'completed') throw new ServiceError('This refund is already marked as sent.')
+    if (r.status !== 'pending') throw new ServiceError('Approve this refund request before sending it.')
     r.status = 'completed'
     r.completedAt = new Date().toISOString()
     r.note = trimmed
     notify(d, r.userId, 'order', 'Refund sent', `Your refund for ${r.orderId} has been sent. Reference: ${trimmed}`, '/refunds')
+  })
+}
+
+/** Approve or decline a customer's refund request. Approved requests join the "to send" queue. */
+export async function reviewRefund(refundId: string, approve: boolean, note: string) {
+  requireUser('admin')
+  const trimmed = typeof note === 'string' ? note.trim().slice(0, 200) : ''
+  if (!approve && trimmed.length < 3) throw new ServiceError('Tell the customer why the request was declined.')
+  commit((d) => {
+    const r = d.refunds.find((x) => x.id === refundId)
+    if (!r) throw new ServiceError('Refund not found.')
+    if (r.status !== 'requested') throw new ServiceError('This request has already been reviewed.')
+    if (approve) {
+      r.status = 'pending'
+      notify(d, r.userId, 'order', 'Refund approved', `Your refund for ${r.orderId} was approved and will be sent within 1–3 business days.`, '/refunds')
+    } else {
+      r.status = 'rejected'
+      r.completedAt = new Date().toISOString()
+      r.note = trimmed
+      notify(d, r.userId, 'order', 'Refund declined', `Your refund request for ${r.orderId} was declined: ${trimmed}`, '/refunds')
+    }
   })
 }
 

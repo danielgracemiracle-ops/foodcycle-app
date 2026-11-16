@@ -7,7 +7,8 @@ import { cartTotal, fulfillPayment, lockPayment, markPaymentFailed, queueRefund,
 import { checkTransaction, createInquiry, DuitkuError, getPaymentChannels, type PaymentChannel } from '../duitku'
 import { commit, getDb, nextNumber, txQuery } from './mock-db'
 import { holdCheckout, refreshStock, releaseCheckout, returnStock } from './stock-api'
-import { delay, notify, requireUser, ServiceError, uid } from './utils'
+import { delay, notify, notifyAdmins, requireUser, ServiceError, uid } from './utils'
+import { REFUND_REASON_MAX, REFUND_REASON_MIN, REFUND_WINDOW_HOURS, refundDeadline } from '@/lib/refund'
 
 /** Any cart change invalidates the reserved stock, so the customer must check out again. */
 function dropCheckoutHold(userId: string) {
@@ -382,6 +383,37 @@ export async function cancelOrder(orderId: string) {
     notify(d, user.id, 'order', 'Order cancelled', `Refund of ${formatRupiah(order.total)} will be returned to your payment method.`, `/orders/${order.id}`)
   })
   await returnOrderStock(getDb().orders.find((o) => o.id === orderId))
+}
+
+/** Customer asks for money back on a received order (e.g. spoiled food); an admin reviews it. */
+export async function requestRefund(orderId: string, reason: string) {
+  const user = requireUser('customer')
+  const text = typeof reason === 'string' ? reason.trim().slice(0, REFUND_REASON_MAX) : ''
+  if (text.length < REFUND_REASON_MIN) throw new ServiceError(`Please describe the problem (at least ${REFUND_REASON_MIN} characters).`)
+  commit((d) => {
+    const order = d.orders.find((o) => o.id === orderId)
+    if (!order || order.customerId !== user.id) throw new ServiceError('Order not found.')
+    const deadline = refundDeadline(order)
+    if (!deadline) throw new ServiceError('Refunds can be requested once you have received the order.')
+    if (Date.now() > deadline.getTime()) throw new ServiceError(`The refund window (${REFUND_WINDOW_HOURS} hours after pickup) has closed.`)
+    const payment = d.payments.find((p) => p.id === order.paymentId)
+    if (!payment || payment.status !== 'success') throw new ServiceError('No completed payment was found for this order.')
+    if (d.refunds.some((r) => r.orderId === order.id)) throw new ServiceError('A refund has already been requested for this order.')
+    d.refunds.unshift({
+      id: uid('rf'),
+      orderId: order.id,
+      paymentId: payment.id,
+      userId: user.id,
+      amount: order.total,
+      reason: `Customer request: ${text}`,
+      status: 'requested',
+      createdAt: new Date().toISOString(),
+    })
+    notifyAdmins(d, 'system', 'Refund request', `${order.id}: ${formatRupiah(order.total)} — ${text}`, '/admin/refunds')
+    const restaurant = d.restaurants.find((r) => r.id === order.restaurantId)
+    notify(d, restaurant?.ownerId, 'order', 'Refund requested', `The customer requested a refund for ${order.id}: ${text}`, '/restaurant/orders')
+    notify(d, user.id, 'order', 'Refund request received', `We'll review your request for ${order.id} and reply soon.`, '/refunds')
+  })
 }
 
 export async function confirmPickup(orderId: string) {

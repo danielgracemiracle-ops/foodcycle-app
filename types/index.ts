@@ -227,7 +227,8 @@ export interface Refund {
   userId: string
   amount: number
   reason: string
-  status: 'pending' | 'completed'
+  /** requested: customer asked, awaiting admin review · pending: approved, money to send · completed: sent · rejected: declined */
+  status: 'requested' | 'pending' | 'completed' | 'rejected'
   createdAt: string
   completedAt?: string
   note?: string
