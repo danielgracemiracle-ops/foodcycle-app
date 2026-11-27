@@ -10,6 +10,7 @@ import { holdCheckout, refreshStock, releaseCheckout, returnStock } from './stoc
 import { delay, notify, notifyAdmins, requireUser, ServiceError, uid } from './utils'
 import { REFUND_REASON_MAX, REFUND_REASON_MIN, REFUND_WINDOW_HOURS, refundDeadline, type UploadedRefundPhoto } from '@/lib/refund'
 import { verifyRefundPhotos } from '../refund-photos'
+import { isOpenDeliveryJob } from '@/lib/delivery'
 
 /** Any cart change invalidates the reserved stock, so the customer must check out again. */
 function dropCheckoutHold(userId: string) {
@@ -343,7 +344,51 @@ export async function advanceOrder(orderId: string) {
     const order = d.orders.find((o) => o.id === orderId)
     if (!order) throw new ServiceError('Order not found.')
     if (order.restaurantId !== user.restaurantId) throw new ServiceError('You can only manage your own orders.')
+    if (order.type === 'donation' && (order.status === 'Ready for Pickup' || order.status === 'Picked Up'))
+      throw new ServiceError('A courier handles the pickup and delivery of donation orders.')
     advance(d, order)
+  })
+}
+
+/** A courier takes an open donation delivery so no other courier can claim it. */
+export async function claimDelivery(orderId: string) {
+  await delay(300)
+  const user = requireUser('courier')
+  commit((d) => {
+    const order = d.orders.find((o) => o.id === orderId)
+    if (!order) throw new ServiceError('Delivery not found.')
+    if (order.courierId && order.courierId !== user.id) throw new ServiceError('Another courier already took this delivery.')
+    if (!isOpenDeliveryJob(order)) throw new ServiceError('This delivery is no longer available.')
+    order.courierId = user.id
+    const restaurant = d.restaurants.find((r) => r.id === order.restaurantId)
+    notify(d, restaurant?.ownerId, 'order', 'Courier on the way', `${user.name} will pick up ${order.id}.`, '/restaurant/orders')
+    notify(d, order.customerId, 'donation', 'Courier assigned', `${user.name} will deliver your donation ${order.id}.`, '/donations')
+  })
+}
+
+/** Courier confirms pickup at the restaurant, then delivery at the institution. */
+export async function advanceDelivery(orderId: string) {
+  await delay(300)
+  const user = requireUser('courier')
+  commit((d) => {
+    const order = d.orders.find((o) => o.id === orderId)
+    if (!order || order.courierId !== user.id) throw new ServiceError('Delivery not found.')
+    if (order.type !== 'donation') throw new ServiceError('Only donation orders are delivered by couriers.')
+    if (order.status !== 'Ready for Pickup' && order.status !== 'Picked Up')
+      throw new ServiceError('This delivery cannot be updated further.')
+    advance(d, order)
+  })
+}
+
+/** Courier gives a claimed delivery back before picking it up. */
+export async function releaseDelivery(orderId: string) {
+  await delay(300)
+  const user = requireUser('courier')
+  commit((d) => {
+    const order = d.orders.find((o) => o.id === orderId)
+    if (!order || order.courierId !== user.id) throw new ServiceError('Delivery not found.')
+    if (order.status !== 'Ready for Pickup') throw new ServiceError('You can only release a delivery before pickup.')
+    order.courierId = undefined
   })
 }
 

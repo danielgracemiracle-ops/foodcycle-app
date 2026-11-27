@@ -44,7 +44,7 @@ export async function register(input: RegisterInput): Promise<User> {
   const email = input.email.trim().toLowerCase()
   if (!EMAIL_RE.test(email)) throw new ServiceError('Please enter a valid email address.')
   if (input.password.length < 8) throw new ServiceError('Password must be at least 8 characters.')
-  if (input.role !== 'customer' && input.role !== 'restaurant' && input.role !== 'institution')
+  if (input.role !== 'customer' && input.role !== 'restaurant' && input.role !== 'institution' && input.role !== 'courier')
     throw new ServiceError('This account type cannot be self-registered.')
   const partnerRole = input.role === 'restaurant' || input.role === 'institution' ? input.role : null
   if (partnerRole) {

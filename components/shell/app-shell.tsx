@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { Bell, LogOut, Menu, Settings, ShoppingCart, User as UserIcon } from 'lucide-react'
 import type { Db, Role, User } from '@/types'
 import { cn } from '@/lib/utils'
+import { isOpenDeliveryJob } from '@/lib/delivery'
 import { useCurrentUser, useDb } from '@/hooks/use-db'
 import { logout } from '@/services/auth-service'
 import { Logo } from '@/components/shared/logo'
@@ -27,6 +28,7 @@ const ROLE_BASE: Record<Role, string> = {
   customer: '',
   restaurant: '/restaurant',
   institution: '/institution',
+  courier: '/courier',
   admin: '/admin',
 }
 
@@ -40,6 +42,8 @@ function badgeCount(db: Db, user: User, badge: NavItem['badge']) {
       return db.orders.filter((o) => o.restaurantId === user.restaurantId && o.status === 'Payment Confirmed').length
     case 'pendingDonations':
       return db.donations.filter((d) => d.institutionId === user.institutionId && d.status === 'Purchased').length
+    case 'deliveryJobs':
+      return db.orders.filter(isOpenDeliveryJob).length
     case 'adminQueue':
       return db.restaurants.filter((r) => r.verification === 'pending').length
     default:

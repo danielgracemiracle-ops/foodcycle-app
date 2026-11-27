@@ -1,6 +1,6 @@
 // Domain types. Each interface maps 1:1 to a future Supabase table (see comments).
 
-export type Role = 'customer' | 'restaurant' | 'institution' | 'admin'
+export type Role = 'customer' | 'restaurant' | 'institution' | 'courier' | 'admin'
 export type AccountStatus = 'active' | 'suspended'
 export type VerificationStatus = 'pending' | 'approved' | 'rejected' | 'suspended'
 
@@ -198,6 +198,8 @@ export interface Order {
   pickupEnd: string
   paymentId: string
   donationId?: string
+  /** Courier who claimed this donation delivery. */
+  courierId?: string
   reviewed: boolean
   createdAt: string
 }

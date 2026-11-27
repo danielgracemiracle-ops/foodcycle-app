@@ -2,7 +2,7 @@ import 'server-only'
 import { headers } from 'next/headers'
 import type { PoolClient } from 'pg'
 import type { Db } from '@/types'
-import { createSeed } from '@/data/seed'
+import { createSeed, DEMO_COURIER } from '@/data/seed'
 import { auth } from '@/lib/auth'
 import { pool } from '@/lib/db'
 import { dbContext, type DbContext, type Sequence } from './services/mock-db'
@@ -27,6 +27,9 @@ function refreshDemoFoods(doc: Db, now = Date.now()) {
 
 function normalize(doc: Db): Db {
   doc.refunds ??= []
+  if (!doc.users.some((u) => u.id === DEMO_COURIER.id || u.email === DEMO_COURIER.email)) {
+    doc.users.push({ ...DEMO_COURIER })
+  }
   refreshDemoFoods(doc)
   return doc
 }

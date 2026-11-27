@@ -22,8 +22,20 @@ export const DEMO_ACCOUNTS = [
   { role: 'customer', email: 'customer@foodcycle.id', password: 'password123', label: 'Customer' },
   { role: 'restaurant', email: 'restaurant@foodcycle.id', password: 'password123', label: 'Restaurant' },
   { role: 'institution', email: 'institution@foodcycle.id', password: 'password123', label: 'Social Institution' },
+  { role: 'courier', email: 'courier@foodcycle.id', password: 'password123', label: 'Courier' },
   { role: 'admin', email: 'admin@foodcycle.id', password: 'password123', label: 'Admin' },
 ] as const
+
+export const DEMO_COURIER: User = {
+  id: 'u-courier',
+  name: 'Joko Susilo',
+  email: 'courier@foodcycle.id',
+  role: 'courier',
+  phone: '+62 817 4455 6677',
+  location: 'Tebet, Jakarta',
+  status: 'active',
+  createdAt: '2026-06-01T08:00:00.000Z',
+}
 
 export function createSeed(nowMs = Date.now()): Db {
   const now = new Date(nowMs)
@@ -45,6 +57,7 @@ export function createSeed(nowMs = Date.now()): Db {
     { id: 'u-rest', name: 'Andi Wijaya', email: 'restaurant@foodcycle.id', role: 'restaurant', phone: '+62 811 2233 4455', location: 'Senopati, Jakarta', status: 'active', createdAt: daysAgo(200), restaurantId: 'r-abc' },
     { id: 'u-inst', name: 'Siti Rahmawati', email: 'institution@foodcycle.id', role: 'institution', phone: '+62 813 9988 7766', location: 'Tebet, Jakarta', status: 'active', createdAt: daysAgo(150), institutionId: 'i-harapan' },
     { id: 'u-admin', name: 'Dewi Lestari', email: 'admin@foodcycle.id', role: 'admin', phone: '+62 815 0000 1111', location: 'Jakarta', status: 'active', createdAt: daysAgo(365) },
+    { ...DEMO_COURIER },
     { id: 'u-c2', name: 'Maya Putri', email: 'maya@mail.com', role: 'customer', location: 'Tebet', status: 'active', createdAt: daysAgo(60) },
     { id: 'u-c3', name: 'Budi Santoso', email: 'budi@mail.com', role: 'customer', location: 'Cikini', status: 'active', createdAt: daysAgo(40) },
     { id: 'u-c4', name: 'Nadia Kusuma', email: 'nadia@mail.com', role: 'customer', location: 'Menteng', status: 'suspended', createdAt: daysAgo(25) },

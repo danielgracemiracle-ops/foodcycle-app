@@ -24,7 +24,9 @@ export function RestaurantOrderCard({ order, db }: { order: Order; db: Db }) {
   const institution = order.donationId
     ? db.institutions.find((i) => i.id === db.donations.find((d) => d.id === order.donationId)?.institutionId)
     : undefined
-  const next = NEXT_LABEL[order.status]
+  const courierHandles = order.type === 'donation' && (order.status === 'Ready for Pickup' || order.status === 'Picked Up')
+  const courier = order.courierId ? db.users.find((u) => u.id === order.courierId) : undefined
+  const next = courierHandles ? undefined : NEXT_LABEL[order.status]
   const canReject = order.status === 'Payment Confirmed' || order.status === 'Restaurant Confirmed'
 
   return (
@@ -61,6 +63,11 @@ export function RestaurantOrderCard({ order, db }: { order: Order; db: Db }) {
       <div className="flex flex-col gap-1 rounded-xl bg-muted p-3 text-xs text-muted-foreground">
         <span>Pickup {pickupLabel(order.pickupStart, order.pickupEnd)}</span>
         {institution && <span>Deliver to {institution.name}</span>}
+        {courierHandles && (
+          <span className="font-medium text-foreground">
+            {courier ? `Courier: ${courier.name}` : 'Waiting for a courier to accept'}
+          </span>
+        )}
       </div>
 
       <footer className="flex flex-wrap items-center justify-between gap-2">

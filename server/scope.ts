@@ -1,5 +1,6 @@
 import 'server-only'
 import type { Db, User } from '@/types'
+import { isOpenDeliveryJob } from '@/lib/delivery'
 
 /**
  * Trims the shared document down to what the signed-in viewer may see.
@@ -30,8 +31,14 @@ export function scopeForViewer(db: Db): Db {
           institutionId: u.institutionId,
         }
 
+  const isCourier = viewer?.role === 'courier' && viewer.status !== 'suspended'
+  const courierOrderIds = new Set(
+    isCourier ? db.orders.filter((o) => isOpenDeliveryJob(o) || o.courierId === id).map((o) => o.id) : [],
+  )
+
   const donations = db.donations.filter(
     (d) =>
+      courierOrderIds.has(d.orderId) ||
       (id && d.donorId === id) ||
       (myRestaurant && d.restaurantId === myRestaurant) ||
       (myInstitution && d.institutionId === myInstitution),
@@ -45,6 +52,7 @@ export function scopeForViewer(db: Db): Db {
     institutions: db.institutions.map((i) => (i.id === myInstitution ? i : { ...i, legal: undefined })),
     orders: db.orders.filter(
       (o) =>
+        courierOrderIds.has(o.id) ||
         (id && o.customerId === id) ||
         (myRestaurant && o.restaurantId === myRestaurant) ||
         (o.donationId !== undefined && visibleDonationIds.has(o.donationId)),

@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { Building2, Loader2, ShoppingBag, Store } from 'lucide-react'
+import { Bike, Building2, Loader2, ShoppingBag, Store } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Role } from '@/types'
 import { cn } from '@/lib/utils'
@@ -21,6 +21,7 @@ const ROLES: { value: Exclude<Role, 'admin'>; label: string; desc: string; icon:
   { value: 'customer', label: 'Customer', desc: 'Buy & donate food', icon: ShoppingBag },
   { value: 'restaurant', label: 'Restaurant', desc: 'Sell surplus food', icon: Store },
   { value: 'institution', label: 'Institution', desc: 'Receive donations', icon: Building2 },
+  { value: 'courier', label: 'Courier', desc: 'Deliver donations', icon: Bike },
 ]
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -41,7 +42,7 @@ export function RegisterForm() {
   const [pending, setPending] = useState(false)
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [k]: e.target.value }))
-  const needsOrg = role !== 'customer'
+  const needsOrg = role === 'restaurant' || role === 'institution'
 
   const validate = () => {
     const e: Record<string, string> = {}
@@ -66,7 +67,7 @@ export function RegisterForm() {
     setPending(true)
     try {
       const user = await register({ role, name: form.name, email: form.email, password: form.password, phone: form.phone || undefined, location: form.location || undefined, organization: form.organization || undefined, legal: needsOrg ? legal : undefined })
-      toast.success(role === 'customer' ? 'Account created. Welcome to FoodCycle!' : 'Account created. Your profile is pending admin verification.')
+      toast.success(!needsOrg ? 'Account created. Welcome to FoodCycle!' : 'Account created. Your profile is pending admin verification.')
       router.replace(ROLE_HOME[user.role])
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Registration failed.')
@@ -84,7 +85,7 @@ export function RegisterForm() {
       <form onSubmit={submit} noValidate className="flex flex-col gap-5">
         <fieldset className="flex flex-col gap-2">
           <legend className="mb-2 text-sm font-medium">I am joining as</legend>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {ROLES.map((r) => (
               <label
                 key={r.value}
