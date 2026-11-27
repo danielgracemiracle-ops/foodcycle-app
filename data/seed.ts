@@ -15,7 +15,7 @@ import type {
 } from '@/types'
 import { calculateQualityScore, calculateGrade, ratingToScore } from '@/lib/quality'
 
-export const DB_VERSION = 3
+export const DB_VERSION = 4
 
 /** Demo credentials. In production this lives in Supabase Auth, never in client state. */
 export const DEMO_ACCOUNTS = [
@@ -297,6 +297,8 @@ export function createSeed(nowMs = Date.now()): Db {
     foods,
     orders,
     payments: [],
+    couriers: [],
+    courierPayouts: [],
     refunds: [],
     donations,
     reviews,

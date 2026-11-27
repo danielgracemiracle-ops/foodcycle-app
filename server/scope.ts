@@ -59,6 +59,8 @@ export function scopeForViewer(db: Db): Db {
     ),
     payments: own(db.payments),
     refunds: own(db.refunds ?? []),
+    couriers: own(db.couriers ?? []),
+    courierPayouts: own(db.courierPayouts ?? []),
     donations,
     notifications: own(db.notifications),
     favorites: own(db.favorites),

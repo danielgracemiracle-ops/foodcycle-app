@@ -3,7 +3,7 @@ import { headers } from 'next/headers'
 import type { User } from '@/types'
 import { DEMO_ACCOUNTS } from '@/data/seed'
 import { auth } from '@/lib/auth'
-import { toInstitutionLegal, toRestaurantLegal, validateLegal } from '@/lib/registration'
+import { toCourierProfile, toInstitutionLegal, toRestaurantLegal, validateLegal } from '@/lib/registration'
 import type { RegisterInput } from '@/lib/roles'
 import { uploadedDocsProblem } from '@/server/legal-docs'
 import { commit, getDb } from './mock-db'
@@ -46,7 +46,7 @@ export async function register(input: RegisterInput): Promise<User> {
   if (input.password.length < 8) throw new ServiceError('Password must be at least 8 characters.')
   if (input.role !== 'customer' && input.role !== 'restaurant' && input.role !== 'institution' && input.role !== 'courier')
     throw new ServiceError('This account type cannot be self-registered.')
-  const partnerRole = input.role === 'restaurant' || input.role === 'institution' ? input.role : null
+  const partnerRole = input.role === 'customer' ? null : input.role
   if (partnerRole) {
     if (!input.legal) throw new ServiceError('Legal documents and a bank account are required.')
     const first = Object.values(validateLegal(partnerRole, input.legal))[0]
@@ -126,6 +126,11 @@ export async function register(input: RegisterInput): Promise<User> {
         createdAt: now,
       })
       notifyAdmins(draft, 'system', 'New institution registration', `${input.organization || user.name} is awaiting verification.`, '/admin/institutions')
+    }
+    if (input.role === 'courier' && input.legal) {
+      draft.couriers = draft.couriers ?? []
+      draft.couriers.push(toCourierProfile(userId, input.legal))
+      notifyAdmins(draft, 'system', 'New courier registration', `${user.name} is awaiting verification.`, '/admin/couriers')
     }
     draft.users.push(user)
     draft.preferences.push({

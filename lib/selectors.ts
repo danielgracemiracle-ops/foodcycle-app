@@ -1,5 +1,6 @@
-import type { Db, Food } from '@/types'
+import type { Db, Food, Order } from '@/types'
 import { isPurchasable } from './recommendation'
+import { donationDeliveryFees } from './courier-pay'
 
 /** Foods a customer can see in the marketplace: active listings from approved restaurants. */
 export function marketplaceFoods(db: Db, now = Date.now()): Food[] {
@@ -28,10 +29,12 @@ export function cartLines(db: Db, userId: string) {
     .filter((l): l is NonNullable<typeof l> => l !== null)
 }
 
-export function cartTotals(lines: ReturnType<typeof cartLines>) {
+/** Donations add one courier delivery fee per restaurant; purchases are picked up for free. */
+export function cartTotals(lines: ReturnType<typeof cartLines>, type: Order['type'] = 'self') {
   const subtotal = lines.reduce((s, l) => s + l.food.originalPrice * l.item.quantity, 0)
-  const total = lines.reduce((s, l) => s + l.food.price * l.item.quantity, 0)
-  return { subtotal, discount: subtotal - total, total, count: lines.reduce((s, l) => s + l.item.quantity, 0) }
+  const food = lines.reduce((s, l) => s + l.food.price * l.item.quantity, 0)
+  const deliveryFee = type === 'donation' ? donationDeliveryFees(lines.map((l) => l.restaurant.id), lines.map((l) => l.restaurant)) : 0
+  return { subtotal, discount: subtotal - food, deliveryFee, total: food + deliveryFee, count: lines.reduce((s, l) => s + l.item.quantity, 0) }
 }
 
 export function greeting(date = new Date()) {

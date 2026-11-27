@@ -18,6 +18,12 @@ export function SummaryTotals({ totals }: { totals: Totals }) {
         <dt className="text-muted-foreground">FoodCycle discount</dt>
         <dd className="font-medium text-primary tabular-nums">-{formatRupiah(totals.discount)}</dd>
       </div>
+      {totals.deliveryFee > 0 && (
+        <div className="flex justify-between">
+          <dt className="text-muted-foreground">Courier delivery to institution</dt>
+          <dd className="tabular-nums">{formatRupiah(totals.deliveryFee)}</dd>
+        </div>
+      )}
       <div className="mt-1 flex justify-between border-t pt-3">
         <dt className="font-semibold">Total</dt>
         <dd className="font-heading text-xl font-bold tabular-nums">{formatRupiah(totals.total)}</dd>

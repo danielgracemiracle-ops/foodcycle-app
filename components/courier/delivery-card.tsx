@@ -3,7 +3,8 @@
 import { Building2, MapPin, Package, Store } from 'lucide-react'
 import type { Db, Order } from '@/types'
 import { useAction } from '@/hooks/use-db'
-import { formatDate, pickupLabel } from '@/lib/format'
+import { formatDate, formatRupiah, pickupLabel } from '@/lib/format'
+import { courierEarning } from '@/lib/courier-pay'
 import { deliveryStage } from '@/lib/delivery'
 import { advanceDelivery, claimDelivery, releaseDelivery } from '@/services/order-service'
 import { Button } from '@/components/ui/button'
@@ -35,6 +36,9 @@ export function DeliveryCard({ order, db, mode }: { order: Order; db: Db; mode: 
           <p className="text-xs text-muted-foreground">
             {itemCount} item{itemCount === 1 ? '' : 's'} · {formatDate(order.createdAt)}
           </p>
+          {(order.deliveryFee ?? 0) > 0 && (
+            <p className="text-sm font-semibold text-primary">You earn {formatRupiah(courierEarning(order))}</p>
+          )}
         </div>
         <Badge variant={stage === 'transit' ? 'default' : 'secondary'}>
           {order.status === 'Cancelled' ? 'Cancelled' : STAGE_LABEL[stage]}

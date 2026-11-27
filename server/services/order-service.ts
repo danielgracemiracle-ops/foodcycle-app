@@ -123,7 +123,7 @@ function activeCheckout(userId: string) {
   const minutesLeft = Math.floor((new Date(draft.holdExpiresAt).getTime() - Date.now()) / 60_000)
   if (minutesLeft < 1) throw new ServiceError('Your 10-minute stock hold has expired. Please go back to checkout to reserve the food again.')
   const cart = validateCart(db, userId, true)
-  return { db, draft, cart, total: cartTotal(db, userId), minutesLeft }
+  return { db, draft, cart, total: cartTotal(db, userId, draft.type), minutesLeft }
 }
 
 export async function listPaymentChannels(): Promise<PaymentChannel[]> {
@@ -355,6 +355,8 @@ export async function claimDelivery(orderId: string) {
   await delay(300)
   const user = requireUser('courier')
   commit((d) => {
+    if ((d.couriers ?? []).find((c) => c.userId === user.id)?.verification !== 'approved')
+      throw new ServiceError('Your courier account is awaiting admin verification.')
     const order = d.orders.find((o) => o.id === orderId)
     if (!order) throw new ServiceError('Delivery not found.')
     if (order.courierId && order.courierId !== user.id) throw new ServiceError('Another courier already took this delivery.')

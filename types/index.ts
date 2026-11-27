@@ -200,6 +200,8 @@ export interface Order {
   donationId?: string
   /** Courier who claimed this donation delivery. */
   courierId?: string
+  /** Delivery fee paid by the donor on top of the food total (donation orders only). */
+  deliveryFee?: number
   reviewed: boolean
   createdAt: string
 }
@@ -386,8 +388,37 @@ export interface Session {
   device: string
 }
 
+export type VehicleType = 'motorcycle' | 'car'
+
+export interface CourierProfile {
+  userId: string
+  nik: string
+  simNumber: string
+  vehicleType: VehicleType
+  vehiclePlate: string
+  documents: LegalDocument[]
+  bank: BankAccount
+  agreedRules: boolean
+  verification: VerificationStatus
+  submittedAt: string
+}
+
+export interface CourierPayout {
+  id: string
+  userId: string
+  amount: number
+  bank: BankAccount
+  /** requested: waiting for admin transfer · paid: money sent · rejected: declined, balance returned */
+  status: 'requested' | 'paid' | 'rejected'
+  createdAt: string
+  resolvedAt?: string
+  note?: string
+}
+
 export interface Db {
   version: number
+  couriers: CourierProfile[]
+  courierPayouts: CourierPayout[]
   users: User[]
   restaurants: Restaurant[]
   institutions: SocialInstitution[]

@@ -1,5 +1,5 @@
-import type { InstitutionLegal, LegalDocument, RestaurantLegal } from '@/types'
-import { DOC_SPECS, type DocKind, type UploadedDoc } from '@/lib/legal-docs'
+import type { CourierProfile, InstitutionLegal, LegalDocument, RestaurantLegal, VehicleType } from '@/types'
+import { DOC_SPECS, type DocKind, type PartnerRole, type UploadedDoc } from '@/lib/legal-docs'
 
 export const BANKS = ['BCA', 'BRI', 'BNI', 'Mandiri', 'BSI', 'CIMB Niaga', 'Permata', 'BTN', 'Danamon', 'Bank Jago', 'SeaBank'] as const
 
@@ -15,7 +15,21 @@ export const INSTITUTION_RULES = [
   'Report changes to your legal documents or bank account to FoodCycle.',
 ]
 
+export const COURIER_RULES = [
+  'Pick up and deliver donations on time, and keep the food sealed and upright.',
+  'You earn 90% of each delivery fee once the institution has received the food.',
+  'Accounts are suspended after repeated late, missing or damaged deliveries.',
+]
+
+export const VEHICLES: { value: VehicleType; label: string; sim: string }[] = [
+  { value: 'motorcycle', label: 'Motorcycle', sim: 'SIM C' },
+  { value: 'car', label: 'Car', sim: 'SIM A' },
+]
+
 export interface LegalDraft {
+  simNumber: string
+  vehicleType: VehicleType | ''
+  vehiclePlate: string
   ownerNik: string
   nib: string
   npwp: string
@@ -35,6 +49,7 @@ export interface LegalDraft {
 }
 
 export const EMPTY_LEGAL: LegalDraft = {
+  simNumber: '', vehicleType: '', vehiclePlate: '',
   ownerNik: '', nib: '', npwp: '', foodPermit: '', halalCertificate: '',
   deedNumber: '', skKemenkumham: '', domicileLetter: '', picName: '', picNik: '', beneficiaries: '',
   bankName: '', accountNumber: '', accountHolder: '', agreedRules: false, documents: {},
@@ -63,7 +78,7 @@ export function nikProblem(raw: string): string | null {
   return null
 }
 
-function validateDocuments(role: 'restaurant' | 'institution', d: LegalDraft, e: Errors) {
+function validateDocuments(role: PartnerRole, d: LegalDraft, e: Errors) {
   for (const spec of DOC_SPECS[role]) {
     if (spec.required && !d.documents[spec.kind]) e[spec.kind] = `Upload the ${spec.label}.`
   }
@@ -71,7 +86,7 @@ function validateDocuments(role: 'restaurant' | 'institution', d: LegalDraft, e:
     e.halalDoc = 'Upload the halal certificate for the number you entered.'
 }
 
-const toDocuments = (role: 'restaurant' | 'institution', d: LegalDraft): LegalDocument[] =>
+const toDocuments = (role: PartnerRole, d: LegalDraft): LegalDocument[] =>
   DOC_SPECS[role].flatMap((s) => {
     const doc = d.documents[s.kind]
     if (!doc) return []
@@ -91,8 +106,26 @@ function validateNpwp(d: LegalDraft, e: Errors) {
   if (n !== 15 && n !== 16) e.npwp = 'NPWP must be 15 or 16 digits.'
 }
 
-export function validateLegal(role: 'restaurant' | 'institution', d: LegalDraft): Errors {
+/** Indonesian plates: area code, 1–4 digits, up to 3 letters (e.g. B 1234 XYZ). */
+export const PLATE_RE = /^[A-Z]{1,2} ?\d{1,4} ?[A-Z]{0,3}$/
+export const normalizePlate = (v: string) => v.trim().toUpperCase().replace(/\s+/g, ' ')
+
+function validateCourier(d: LegalDraft, e: Errors) {
+  const nik = nikProblem(d.ownerNik)
+  if (nik) e.ownerNik = nik
+  const sim = digits(d.simNumber).length
+  if (sim < 12 || sim > 14) e.simNumber = 'SIM number must be 12–14 digits.'
+  if (!VEHICLES.some((v) => v.value === d.vehicleType)) e.vehicleType = 'Choose your vehicle.'
+  if (!PLATE_RE.test(normalizePlate(d.vehiclePlate))) e.vehiclePlate = 'Enter a plate like B 1234 XYZ.'
+  validateBank(d, e)
+  validateDocuments('courier', d, e)
+  if (!d.agreedRules) e.agreedRules = 'You must accept the courier rules.'
+  return e
+}
+
+export function validateLegal(role: PartnerRole, d: LegalDraft): Errors {
   const e: Errors = {}
+  if (role === 'courier') return validateCourier(d, e)
   if (role === 'restaurant') {
     const nik = nikProblem(d.ownerNik)
     if (nik) e.ownerNik = nik
@@ -143,6 +176,21 @@ export function toInstitutionLegal(d: LegalDraft): InstitutionLegal {
     documents: toDocuments('institution', d),
     bank: bankOf(d),
     agreedRules: d.agreedRules,
+    submittedAt: new Date().toISOString(),
+  }
+}
+
+export function toCourierProfile(userId: string, d: LegalDraft): CourierProfile {
+  return {
+    userId,
+    nik: digits(d.ownerNik),
+    simNumber: digits(d.simNumber),
+    vehicleType: d.vehicleType as VehicleType,
+    vehiclePlate: normalizePlate(d.vehiclePlate),
+    documents: toDocuments('courier', d),
+    bank: bankOf(d),
+    agreedRules: d.agreedRules,
+    verification: 'pending',
     submittedAt: new Date().toISOString(),
   }
 }

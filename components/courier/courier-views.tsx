@@ -7,6 +7,7 @@ import { courierDeliveries, isOpenDeliveryJob } from '@/lib/delivery'
 import { EmptyState, PageHeader, StatCard } from '@/components/shared/page'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { DeliveryCard } from './delivery-card'
+import { CourierVerificationBanner } from './courier-earnings'
 
 const Loading = () => <div className="h-96 animate-pulse rounded-3xl bg-muted" />
 
@@ -32,6 +33,7 @@ export function CourierDashboardView() {
         title={`Hi, ${user.name.split(' ')[0]}`}
         description="Pick up packed donations from restaurants and bring them to social institutions."
       />
+      <CourierVerificationBanner db={db} userId={user.id} />
 
       <div className="grid grid-cols-3 gap-3">
         <StatCard label="Available" value={open.length} icon={Inbox} />

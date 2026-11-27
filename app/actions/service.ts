@@ -5,6 +5,7 @@ import { readAppDb, withAppDb } from '@/server/runtime'
 import { scopeForViewer } from '@/server/scope'
 import * as admin from '@/server/services/admin-service'
 import * as authService from '@/server/services/auth-service'
+import * as courier from '@/server/services/courier-service'
 import * as engagement from '@/server/services/engagement-service'
 import * as food from '@/server/services/food-service'
 import * as order from '@/server/services/order-service'
@@ -14,6 +15,7 @@ import { ServiceError } from '@/server/services/utils'
 const SERVICES: Record<string, Record<string, unknown>> = {
   admin,
   auth: authService,
+  courier,
   engagement,
   food,
   order,
