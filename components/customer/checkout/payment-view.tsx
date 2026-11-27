@@ -29,7 +29,7 @@ export function PaymentView() {
 
   const draft = user ? db.checkoutDrafts[user.id] : undefined
   const lines = user ? cartLines(db, user.id) : []
-  const totals = cartTotals(lines)
+  const totals = cartTotals(lines, draft?.type)
   const ready = Boolean(hydrated && user && draft?.holdKey && draft.holdExpiresAt && lines.length > 0)
 
   const channels = useSWR(ready ? ['payment-channels', totals.total] : null, () => listPaymentChannels(), {

@@ -9,6 +9,9 @@ export type DocKind =
   | 'skDoc'
   | 'domicileDoc'
   | 'picKtp'
+  | 'courierKtp'
+  | 'simDoc'
+  | 'stnkDoc'
 
 export interface DocSpec {
   kind: DocKind
@@ -16,7 +19,14 @@ export interface DocSpec {
   required: boolean
 }
 
-export const DOC_SPECS: Record<'restaurant' | 'institution', DocSpec[]> = {
+export type PartnerRole = 'restaurant' | 'institution' | 'courier'
+
+export const DOC_SPECS: Record<PartnerRole, DocSpec[]> = {
+  courier: [
+    { kind: 'courierKtp', label: 'KTP photo', required: true },
+    { kind: 'simDoc', label: 'Driving licence (SIM) photo', required: true },
+    { kind: 'stnkDoc', label: 'Vehicle registration (STNK) photo', required: true },
+  ],
   restaurant: [
     { kind: 'ownerKtp', label: 'Owner KTP photo', required: true },
     { kind: 'nibDoc', label: 'NIB certificate (OSS)', required: true },
@@ -31,11 +41,11 @@ export const DOC_SPECS: Record<'restaurant' | 'institution', DocSpec[]> = {
   ],
 }
 
-export const ALL_DOC_KINDS = new Set<DocKind>([...DOC_SPECS.restaurant, ...DOC_SPECS.institution].map((s) => s.kind))
+const ALL_SPECS = Object.values(DOC_SPECS).flat()
 
-export const DOC_LABEL = Object.fromEntries(
-  [...DOC_SPECS.restaurant, ...DOC_SPECS.institution].map((s) => [s.kind, s.label]),
-) as Record<DocKind, string>
+export const ALL_DOC_KINDS = new Set<DocKind>(ALL_SPECS.map((s) => s.kind))
+
+export const DOC_LABEL = Object.fromEntries(ALL_SPECS.map((s) => [s.kind, s.label])) as Record<DocKind, string>
 
 export const MAX_DOC_BYTES = 4 * 1024 * 1024
 export const DOC_ACCEPT = 'image/jpeg,image/png,image/webp,application/pdf'

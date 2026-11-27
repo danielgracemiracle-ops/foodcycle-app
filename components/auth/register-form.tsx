@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { Building2, Loader2, ShoppingBag, Store } from 'lucide-react'
+import { Bike, Building2, Loader2, ShoppingBag, Store } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Role } from '@/types'
 import { cn } from '@/lib/utils'
@@ -14,13 +14,14 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { FormField } from '@/components/shared/form-field'
 import { EMPTY_LEGAL, validateLegal, type LegalDraft, type LegalErrors } from '@/lib/registration'
-import type { DocKind, UploadedDoc } from '@/lib/legal-docs'
+import type { DocKind, PartnerRole, UploadedDoc } from '@/lib/legal-docs'
 import { LegalFields } from './legal-fields'
 
 const ROLES: { value: Exclude<Role, 'admin'>; label: string; desc: string; icon: typeof Store }[] = [
   { value: 'customer', label: 'Customer', desc: 'Buy & donate food', icon: ShoppingBag },
   { value: 'restaurant', label: 'Restaurant', desc: 'Sell surplus food', icon: Store },
   { value: 'institution', label: 'Institution', desc: 'Receive donations', icon: Building2 },
+  { value: 'courier', label: 'Courier', desc: 'Deliver donations', icon: Bike },
 ]
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -41,7 +42,8 @@ export function RegisterForm() {
   const [pending, setPending] = useState(false)
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [k]: e.target.value }))
-  const needsOrg = role !== 'customer'
+  const needsOrg = role === 'restaurant' || role === 'institution'
+  const needsLegal = needsOrg || role === 'courier'
 
   const validate = () => {
     const e: Record<string, string> = {}
@@ -51,7 +53,7 @@ export function RegisterForm() {
     if (form.password.length < 8) e.password = 'Use at least 8 characters.'
     if (form.confirm !== form.password) e.confirm = 'Passwords do not match.'
     if (!agree) e.agree = 'You must accept the terms to continue.'
-    const le = needsOrg ? validateLegal(role as 'restaurant' | 'institution', legal) : {}
+    const le = needsLegal ? validateLegal(role as PartnerRole, legal) : {}
     setErrors(e)
     setLegalErrors(le)
     const ok = Object.keys(e).length === 0 && Object.keys(le).length === 0
@@ -65,8 +67,8 @@ export function RegisterForm() {
     if (!validate()) return
     setPending(true)
     try {
-      const user = await register({ role, name: form.name, email: form.email, password: form.password, phone: form.phone || undefined, location: form.location || undefined, organization: form.organization || undefined, legal: needsOrg ? legal : undefined })
-      toast.success(role === 'customer' ? 'Account created. Welcome to FoodCycle!' : 'Account created. Your profile is pending admin verification.')
+      const user = await register({ role, name: form.name, email: form.email, password: form.password, phone: form.phone || undefined, location: form.location || undefined, organization: form.organization || undefined, legal: needsLegal ? legal : undefined })
+      toast.success(!needsLegal ? 'Account created. Welcome to FoodCycle!' : 'Account created. Your profile is pending admin verification.')
       router.replace(ROLE_HOME[user.role])
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Registration failed.')
@@ -84,7 +86,7 @@ export function RegisterForm() {
       <form onSubmit={submit} noValidate className="flex flex-col gap-5">
         <fieldset className="flex flex-col gap-2">
           <legend className="mb-2 text-sm font-medium">I am joining as</legend>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {ROLES.map((r) => (
               <label
                 key={r.value}
@@ -130,7 +132,7 @@ export function RegisterForm() {
           </FormField>
         </div>
 
-        {needsOrg && <LegalFields role={role as 'restaurant' | 'institution'} value={legal} onChange={setLegal} onDocument={setDocument} errors={legalErrors} />}
+        {needsLegal && <LegalFields role={role as PartnerRole} value={legal} onChange={setLegal} onDocument={setDocument} errors={legalErrors} />}
 
         <div className="flex flex-col gap-1.5">
           <div className="flex items-start gap-2.5">

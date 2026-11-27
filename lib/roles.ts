@@ -5,6 +5,7 @@ export const ROLE_HOME: Record<Role, string> = {
   customer: '/home',
   restaurant: '/restaurant',
   institution: '/institution',
+  courier: '/courier',
   admin: '/admin',
 }
 

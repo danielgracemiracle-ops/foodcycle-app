@@ -1,8 +1,8 @@
 'use client'
 
 import { FileCheck2, FolderUp, Landmark } from 'lucide-react'
-import { BANKS, INSTITUTION_RULES, RESTAURANT_RULES, type LegalDraft, type LegalErrors } from '@/lib/registration'
-import { DOC_SPECS, type DocKind, type UploadedDoc } from '@/lib/legal-docs'
+import { BANKS, COURIER_RULES, INSTITUTION_RULES, RESTAURANT_RULES, VEHICLES, type LegalDraft, type LegalErrors } from '@/lib/registration'
+import { DOC_SPECS, type DocKind, type PartnerRole, type UploadedDoc } from '@/lib/legal-docs'
 import { FormField } from '@/components/shared/form-field'
 import { DocumentUpload } from './document-upload'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -11,14 +11,14 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 interface LegalFieldsProps {
-  role: 'restaurant' | 'institution'
+  role: PartnerRole
   value: LegalDraft
   onChange: (next: LegalDraft) => void
   onDocument: (kind: DocKind, doc: UploadedDoc | undefined) => void
   errors: LegalErrors
 }
 
-type TextKey = Exclude<keyof LegalDraft, 'agreedRules' | 'documents'>
+type TextKey = Exclude<keyof LegalDraft, 'agreedRules' | 'documents' | 'vehicleType'>
 
 function Section({ icon: Icon, title, description, children }: { icon: typeof Landmark; title: string; description: string; children: React.ReactNode }) {
   return (
@@ -55,7 +55,12 @@ export function LegalFields({ role, value, onChange, onDocument, errors }: Legal
       )}
     </FormField>
   )
-  const rules = role === 'restaurant' ? RESTAURANT_RULES : INSTITUTION_RULES
+  const rules = role === 'restaurant' ? RESTAURANT_RULES : role === 'courier' ? COURIER_RULES : INSTITUTION_RULES
+  const bankHint = {
+    restaurant: 'Sales are paid out here. Use an account in the business or owner name.',
+    institution: 'Must be in the institution name. Used for verified fund transfers.',
+    courier: 'Your delivery earnings are transferred here. Use an account in your own name.',
+  }[role]
 
   return (
     <div className="flex flex-col gap-4">
@@ -64,7 +69,25 @@ export function LegalFields({ role, value, onChange, onDocument, errors }: Legal
         title="Legal documents"
         description="Admins check these numbers before your account is approved, usually within 3 working days."
       >
-        {role === 'restaurant' ? (
+        {role === 'courier' ? (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {text('ownerNik', 'NIK (KTP)', { numeric: true, hint: '16 digits' })}
+            {text('simNumber', 'SIM number', { numeric: true, hint: '12–14 digits, SIM C or A' })}
+            <FormField label="Vehicle" error={errors.vehicleType}>
+              {(p) => (
+                <Select value={value.vehicleType} onValueChange={(v) => onChange({ ...value, vehicleType: (v ?? '') as LegalDraft['vehicleType'] })}>
+                  <SelectTrigger {...p} className="h-11 w-full">
+                    <SelectValue placeholder="Choose a vehicle" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {VEHICLES.map((v) => <SelectItem key={v.value} value={v.value}>{`${v.label} (${v.sim})`}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )}
+            </FormField>
+            {text('vehiclePlate', 'Plate number', { placeholder: 'e.g. B 1234 XYZ' })}
+          </div>
+        ) : role === 'restaurant' ? (
           <div className="grid gap-4 sm:grid-cols-2">
             {text('ownerNik', 'Owner NIK (KTP)', { numeric: true, hint: '16 digits' })}
             {text('nib', 'NIB (OSS)', { numeric: true, hint: '13 digits' })}
@@ -106,7 +129,7 @@ export function LegalFields({ role, value, onChange, onDocument, errors }: Legal
       <Section
         icon={Landmark}
         title="Bank account"
-        description={role === 'restaurant' ? 'Sales are paid out here. Use an account in the business or owner name.' : 'Must be in the institution name. Used for verified fund transfers.'}
+        description={bankHint}
       >
         <div className="grid gap-4 sm:grid-cols-2">
           <FormField label="Bank" error={errors.bankName}>

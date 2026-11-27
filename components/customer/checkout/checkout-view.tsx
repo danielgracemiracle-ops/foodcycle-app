@@ -33,7 +33,7 @@ export function CheckoutView({ initialType }: { initialType: OrderType }) {
   if (!hydrated || !user) return <div className="h-80 animate-pulse rounded-3xl bg-muted" />
 
   const lines = cartLines(db, user.id)
-  const totals = cartTotals(lines)
+  const totals = cartTotals(lines, type)
   const institutions = db.institutions.filter((i) => i.verification === 'approved' && i.acceptingDonations)
   const notDonatable = lines.filter((l) => !l.food.donationAvailable)
   const restaurants = [...new Map(lines.map((l) => [l.restaurant.id, l.restaurant])).values()]

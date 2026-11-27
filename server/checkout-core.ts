@@ -3,6 +3,7 @@ import type { Db, Donation, Order, OrderItem } from '@/types'
 import { calculateGrade } from '@/lib/quality'
 import { isPurchasable } from '@/lib/recommendation'
 import { formatRupiah } from '@/lib/format'
+import { deliveryFeeFor, donationDeliveryFees } from '@/lib/courier-pay'
 import { commit, getDb, nextNumber, txQuery } from './services/mock-db'
 import { confirmCheckout } from './services/stock-api'
 import { notify, notifyAdmins, ServiceError, uid } from './services/utils'
@@ -25,8 +26,12 @@ export function validateCart(db: Db, userId: string, stockHeld = false) {
 }
 
 /** Prices always come from the server's food records, never from the browser. */
-export function cartTotal(db: Db, userId: string) {
-  return (db.carts[userId] ?? []).reduce((s, c) => s + (db.foods.find((f) => f.id === c.foodId)?.price ?? 0) * c.quantity, 0)
+export function cartTotal(db: Db, userId: string, type: Order['type'] = 'self') {
+  const cart = db.carts[userId] ?? []
+  const food = cart.reduce((s, c) => s + (db.foods.find((f) => f.id === c.foodId)?.price ?? 0) * c.quantity, 0)
+  if (type !== 'donation') return food
+  const restaurantIds = cart.map((c) => db.foods.find((f) => f.id === c.foodId)?.restaurantId).filter((id): id is string => !!id)
+  return food + donationDeliveryFees(restaurantIds, db.restaurants)
 }
 
 export interface PaymentRow extends Record<string, unknown> {
@@ -99,7 +104,7 @@ export async function fulfillPayment(merchantOrderId: string, verified: { amount
     await markUnfulfilled(row, e instanceof ServiceError ? e.message : 'An item became unavailable.')
     return { status: 'unfulfilled' as const, orderIds: [] }
   }
-  if (cartTotal(db, userId) !== row.amount) {
+  if (cartTotal(db, userId, draft.type) !== row.amount) {
     await markUnfulfilled(row, 'Prices changed while the payment was in progress.')
     return { status: 'unfulfilled' as const, orderIds: [] }
   }
@@ -171,6 +176,7 @@ export async function fulfillPayment(merchantOrderId: string, verified: { amount
         reviewed: false,
         createdAt: now,
       }
+      if (draft.type === 'donation') order.deliveryFee = deliveryFeeFor(d.restaurants.find((r) => r.id === restaurantId))
 
       const restaurant = d.restaurants.find((r) => r.id === restaurantId)
       if (draft.type === 'donation' && draft.institutionId) {
@@ -240,10 +246,10 @@ export function queueRefund(d: Db, order: Order, reason: string) {
     orderId: order.id,
     paymentId: payment.id,
     userId: order.customerId,
-    amount: order.total,
+    amount: order.total + (order.deliveryFee ?? 0),
     reason,
     status: 'pending',
     createdAt: new Date().toISOString(),
   })
-  notifyAdmins(d, 'system', 'Refund needed', `${order.id}: refund ${formatRupiah(order.total)} — ${reason}`, '/admin/refunds')
+  notifyAdmins(d, 'system', 'Refund needed', `${order.id}: refund ${formatRupiah(order.total + (order.deliveryFee ?? 0))} — ${reason}`, '/admin/refunds')
 }

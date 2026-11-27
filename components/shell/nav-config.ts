@@ -1,6 +1,7 @@
 import {
   BarChart3,
   Bell,
+  Bike,
   Building2,
   ClipboardList,
   Compass,
@@ -17,6 +18,7 @@ import {
   Package,
   Receipt,
   Undo2,
+  Wallet,
   Settings,
   ShoppingBag,
   Star,
@@ -32,7 +34,7 @@ export interface NavItem {
   label: string
   icon: LucideIcon
   exact?: boolean
-  badge?: 'notifications' | 'cart' | 'pendingOrders' | 'pendingDonations' | 'adminQueue'
+  badge?: 'notifications' | 'cart' | 'pendingOrders' | 'pendingDonations' | 'deliveryJobs' | 'adminQueue'
 }
 
 export interface NavConfig {
@@ -75,11 +77,21 @@ const institutionPrimary: NavItem[] = [
   { href: '/institution/settings', label: 'Settings', icon: Settings },
 ]
 
+const courierPrimary: NavItem[] = [
+  { href: '/courier', label: 'Deliveries', icon: Bike, exact: true, badge: 'deliveryJobs' },
+  { href: '/courier/history', label: 'History', icon: History },
+  { href: '/courier/earnings', label: 'Earnings', icon: Wallet },
+  { href: '/courier/notifications', label: 'Notifications', icon: Bell, badge: 'notifications' },
+  { href: '/courier/profile', label: 'Profile', icon: User },
+  { href: '/courier/settings', label: 'Settings', icon: Settings },
+]
+
 const adminPrimary: NavItem[] = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
   { href: '/admin/users', label: 'Users', icon: Users },
   { href: '/admin/restaurants', label: 'Restaurants', icon: Store, badge: 'adminQueue' },
   { href: '/admin/institutions', label: 'Institutions', icon: Building2 },
+  { href: '/admin/couriers', label: 'Couriers', icon: Bike },
   { href: '/admin/foods', label: 'Foods', icon: UtensilsCrossed },
   { href: '/admin/orders', label: 'Orders', icon: Receipt },
   { href: '/admin/refunds', label: 'Refunds', icon: Undo2 },
@@ -109,6 +121,11 @@ export const NAV: Record<Role, NavConfig> = {
     label: 'Social Institution',
     primary: institutionPrimary,
     mobile: pick(institutionPrimary, ['/institution', '/institution/donations', '/institution/history', '/institution/profile']),
+  },
+  courier: {
+    label: 'Courier',
+    primary: courierPrimary,
+    mobile: pick(courierPrimary, ['/courier', '/courier/history', '/courier/notifications', '/courier/profile']),
   },
   admin: {
     label: 'Admin',

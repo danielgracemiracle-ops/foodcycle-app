@@ -1,7 +1,7 @@
 import 'server-only'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import type { LegalDocument } from '@/types'
-import { DOC_SPECS, type UploadedDoc } from '@/lib/legal-docs'
+import { DOC_SPECS, type PartnerRole, type UploadedDoc } from '@/lib/legal-docs'
 
 const TOKEN_TTL_MS = 24 * 60 * 60 * 1000
 
@@ -27,7 +27,7 @@ export function sniffType(bytes: Uint8Array): { contentType: string; ext: string
 }
 
 /** Returns an error message when any submitted file was not issued by our upload route. */
-export function uploadedDocsProblem(role: 'restaurant' | 'institution', docs: Record<string, UploadedDoc | undefined>): string | null {
+export function uploadedDocsProblem(role: PartnerRole, docs: Record<string, UploadedDoc | undefined>): string | null {
   const allowed = new Set(DOC_SPECS[role].map((s) => s.kind))
   for (const [key, doc] of Object.entries(docs)) {
     if (!doc) continue
